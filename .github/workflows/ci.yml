@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+
+    - name: Install dependencies for client
+      run: |
+        cd client
+        npm install
+
+    - name: Install dependencies for server
+      run: |
+        cd server
+        npm install
+
+    - name: Lint client
+      run: |
+        cd client
+        npm run lint
+
+    - name: Lint server
+      run: |
+        cd server
+        npm run lint
+
+    - name: Test client
+      run: |
+        cd client
+        npm test
+
+    - name: Test server
+      run: |
+        cd server
+        npm test

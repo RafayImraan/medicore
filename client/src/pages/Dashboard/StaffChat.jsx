@@ -178,7 +178,7 @@ const StaffChat = () => {
       </div>
 
       {/* 🔁 Typing Indicator */}
-      <div className="text-sm text-gray-500 mt-2 italic">💬 Nurse Fatima is typing…</div>
+      <div className="text-sm text-black-500 mt-2 italic">💬 Nurse Fatima is typing…</div>
 
       {/* ⭐ Reaction Mock */}
       <div className="mt-4 flex gap-4 text-xl">
@@ -216,16 +216,7 @@ const StaffChat = () => {
         </div>
       </div>
 
-      {/* 📤 Export & Print Scaffolding */}
-      <div className="mt-6 text-xs bg-gray-100 border p-4 rounded space-y-1">
-        📁 <strong>Export:</strong> Message archive available as CSV/PDF in pro tier.
-        <br />
-        🖨️ <strong>Print Layout:</strong> Optimized for physical handover reports.
-        <br />
-        🔒 <strong>Access:</strong> Only visible to logged-in staff with messaging privileges.
-        <br />
-        🔍 <strong>Audit Preview:</strong> Last sender update: {messages[0]?.sender} — {messages[0]?.time}
-      </div>
+      
     </div>
   );
 };

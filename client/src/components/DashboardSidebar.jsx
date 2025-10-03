@@ -6,10 +6,8 @@ const DashboardSidebar = () => {
   const location = useLocation();
   const { userRole, logout } = useAuth();
 
-  const commonLinks = [
-    { label: "Dashboard Home", path: `/${userRole}/dashboard` },
-    { label: "Appointments", path: `/${userRole}/appointments` },
-    { label: "Profile", path: `/${userRole}/profile` },
+const commonLinks = [
+    { label: "Dashboard Home", path: "/dashboard/doctor" },
   ];
 
   const adminLinks = [
@@ -18,8 +16,12 @@ const DashboardSidebar = () => {
   ];
 
   const doctorLinks = [
-    { label: "Patient List", path: "/doctor/patients" },
-    { label: "Lab Results", path: "/doctor/labs" },
+    { label: "All Patients", path: "/doctor/patients" },
+    { label: "Schedule", path: "/doctor/schedule" },
+    { label: "Lab Results", path: "/doctor/lab-results" },
+    { label: "Prescriptions", path: "/doctor/prescriptions" },
+    { label: "Staff Chat", path: "/doctor/chat" },
+    { label: "Billing", path: "/doctor/billing" },
   ];
 
   const patientLinks = [

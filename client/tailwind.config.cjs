@@ -42,7 +42,7 @@ module.exports = {
       },
       backgroundImage: {
         'gradient-radial': "radial-gradient(var(--tw-gradient-stops))",
-        'gradient-animated': "linear-gradient(-45deg, #ff6ec4, #7873f5, #4ade80, #22d3ee)",
+        'gradient-animated': "linear-gradient(-45deg, #012e13ff, #1d6c45ff, #4ade80, #22d3ee)",
       },
     },
   },

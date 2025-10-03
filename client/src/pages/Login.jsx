@@ -1,13 +1,17 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
 const Login = () => {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    setIsLoading(true);
 
     try {
       const response = await fetch("http://localhost:5000/api/auth/login", {
@@ -21,16 +25,19 @@ const Login = () => {
       const data = await response.json();
 
       if (response.ok) {
-        localStorage.setItem("user", JSON.stringify(data.user));
+        // Use the new login function from AuthContext
+        login(data.user, data.token, data.refreshToken);
 
         // Redirect to role-based dashboard
         const role = data.user.role;
         if (role === "admin") {
-          navigate("/dashboard/Admin");
+          navigate("/dashboard/admin");
         } else if (role === "doctor") {
           navigate("/dashboard/doctor");
         } else if (role === "nurse") {
           navigate("/dashboard/nurse");
+        } else if (role === "patient") {
+          navigate("/dashboard/patient");
         } else {
           alert("Invalid role. Cannot redirect.");
         }
@@ -40,6 +47,8 @@ const Login = () => {
     } catch (err) {
       console.error("Login error:", err);
       alert("Something went wrong.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
