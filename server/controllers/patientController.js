@@ -186,7 +186,8 @@ exports.getLabResults = async (req, res) => {
     const { userId } = req.params;
     const patient = await Patient.findOne({ userId });
     if (!patient) {
-      return res.status(404).json({ error: 'Patient not found' });
+      // Return empty array instead of 404 if no patient profile exists
+      return res.json([]);
     }
     const labResults = await LabResult.find({ patientId: patient._id }).sort({ date: -1 });
     res.json(labResults);
@@ -201,7 +202,8 @@ exports.getPrescriptions = async (req, res) => {
     const { userId } = req.params;
     const patient = await Patient.findOne({ userId });
     if (!patient) {
-      return res.status(404).json({ error: 'Patient not found' });
+      // Return empty array instead of 404 if no patient profile exists
+      return res.json([]);
     }
     const prescriptions = await Prescription.find({ patientId: patient._id }).populate('prescribedBy', 'name').sort({ date: -1 });
     res.json(prescriptions);
@@ -216,7 +218,8 @@ exports.getBilling = async (req, res) => {
     const { userId } = req.params;
     const patient = await Patient.findOne({ userId });
     if (!patient) {
-      return res.status(404).json({ error: 'Patient not found' });
+      // Return empty array instead of 404 if no patient profile exists
+      return res.json([]);
     }
     const billing = await Billing.find({ patientId: patient._id }).sort({ createdAt: -1 });
     res.json(billing);

@@ -12,7 +12,7 @@ dotenv.config();
 
 const authRoutes = require("./routes/authRoutes");
 const adminRoutes = require("./routes/adminRoutes");
-const appointmentRoutes = require("./routes/appointmentRoutes");
+const { router: appointmentRoutes, createAppointment } = require("./routes/appointmentRoutes");
 const reportRoutes = require("./routes/reportRoutes");
 const patientRoutes = require("./routes/patientRoutes");
 const doctorRoutes = require("./routes/doctorRoutes");
@@ -64,7 +64,10 @@ app.get('/api/doctors/featured', doctorController.getFeaturedDoctor);
 
 // Protected Routes (require authentication)
 app.use("/api/admin", verifyToken, requireAnyAuthenticated, adminRoutes);  // Admin Routes
-app.use("/api/appointments", verifyToken, requireAnyAuthenticated, appointmentRoutes);  // Appointment Routes (protected)
+
+// Appointment Routes - POST is public for booking, others are protected
+app.post("/api/appointments", createAppointment);  // Public booking
+app.use("/api/appointments", verifyToken, requireAnyAuthenticated, appointmentRoutes);  // Other routes protected
 app.use("/reports", verifyToken, requireAnyAuthenticated, reportRoutes);  // Report Routes
 app.use("/api/patients", verifyToken, requireAnyAuthenticated, patientRoutes);  // Patient Routes
 app.use("/api/doctors", verifyToken, requireAnyAuthenticated, doctorRoutes);  // Doctor Routes

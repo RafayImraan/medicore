@@ -136,8 +136,7 @@ const createAppointment = async (req, res) => {
   }
 };
 
-// POST route for creating appointment
-router.post("/", createAppointment);
+// POST route for creating appointment is handled in index.js as public
 
 // Get all appointments
 router.get("/", async (req, res) => {
@@ -334,4 +333,4 @@ router.put("/:id/status", async (req, res) => {
   }
 });
 
-module.exports = router;
+module.exports = { router, createAppointment };
