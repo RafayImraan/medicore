@@ -1,757 +1,1656 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import { FaSync, FaExclamationTriangle, FaStethoscope, FaHeartbeat, FaThermometerHalf, FaWeight, FaTint, FaNotesMedical, FaVideo, FaPhoneAlt, FaCalendarAlt, FaUsers, FaBell, FaFlask, FaUserInjured, FaCalendarCheck, FaCreditCard } from 'react-icons/fa';
-import { useAuth } from '../../context/AuthContext';
-import { doctorAPI, fetchWithFallback, fallbackData } from '../../services/api';
+import React, { useEffect, useMemo, useState, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  FaSync, FaExclamationTriangle, FaStethoscope, FaHeartbeat, FaThermometerHalf,
+  FaTint, FaVideo, FaPhoneAlt, FaCalendarAlt,
+  FaBell, FaFlask, FaUserInjured, FaCreditCard,
+  FaChartLine, FaRobot, FaBrain, FaLungs, FaSearch, FaKeyboard, FaDownload,
+  FaTimes, FaClock, FaPills, FaHospital,
+  FaTrophy, FaChevronUp, FaChevronDown, FaExpand, FaCompress,
+  FaGripVertical, FaMoon, FaSun, FaEye, FaMicrophone, FaArrowUp,
+  FaExclamationCircle, FaCheckCircle, FaInfoCircle,
+  FaSave, FaCog
+} from 'react-icons/fa';
 import { faker } from '@faker-js/faker';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, Legend } from 'recharts';
+import {
+  LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar,
+  PieChart, Pie, Cell, Legend, AreaChart, Area, RadarChart, Radar, PolarGrid,
+  PolarAngleAxis, PolarRadiusAxis, ComposedChart, ReferenceLine, Brush
+} from 'recharts';
+import {
+  DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors
+} from '@dnd-kit/core';
+import {
+  arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable,
+  rectSortingStrategy
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
-
-// Small helpers
+// Helpers
 const rand = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
-const patientName = (i) => `${faker.person.firstName()} ${faker.person.lastName()}`;
+const patientName = () => `${faker.person.firstName()} ${faker.person.lastName()}`;
 
-// Generate mock appointments
-const genAppointments = (count = 6) => Array.from({ length: count }).map((_, i) => ({
-  id: `apt-${i + 1}`,
-  date: new Date(Date.now() + i * 3600 * 24 * 1000).toLocaleDateString(),
-  time: `${rand(8,16)}:${["00","15","30","45"][Math.floor(Math.random()*4)]}`,
-  patient: patientName(i),
-  reason: faker.lorem.words(3),
-  status: faker.helpers.arrayElement(['Confirmed','Pending','Completed','Cancelled']),
-}));
+// Generate mock data
+const generatePatients = (n = 20) => Array.from({ length: n }).map((_, i) => {
+  const riskScore = rand(0, 100);
+  return {
+    id: `p-${i + 1}`,
+    name: patientName(),
+    age: rand(18, 85),
+    gender: faker.helpers.arrayElement(['Male', 'Female', 'Other']),
+    nextAppointment: new Date(Date.now() + rand(1, 20) * 86400000).toLocaleDateString(),
+    priority: riskScore > 80 ? 'Critical' : riskScore > 60 ? 'High' : riskScore > 30 ? 'Medium' : 'Low',
+    tags: faker.helpers.arrayElements(['Follow-up', 'New', 'Chronic', 'Post-op', 'Emergency', 'ICU', 'Outpatient'], rand(1, 3)),
+    condition: faker.helpers.arrayElement(['Hypertension', 'Diabetes', 'Asthma', 'COPD', 'Heart Failure', 'Stroke', 'Cancer', 'COVID-19']),
+    vitalsHistory: Array.from({ length: 14 }).map((__, j) => ({
+      date: new Date(Date.now() - j * 86400000).toLocaleDateString(),
+      bp: `${rand(100, 180)}/${rand(60, 110)}`,
+      hr: rand(50, 130),
+      sugar: rand(70, 250),
+      temp: +(35 + Math.random() * 4).toFixed(1),
+      o2: rand(88, 100),
+      timestamp: Date.now() - j * 86400000
+    })),
+    photo: `https://i.pravatar.cc/150?img=${rand(1, 70)}`,
+    riskScore,
+    adherenceScore: rand(40, 100),
+    lastVisit: new Date(Date.now() - rand(1, 30) * 86400000).toLocaleDateString(),
+    onlineStatus: faker.helpers.arrayElement(['online', 'offline', 'busy']),
+    missingData: faker.helpers.arrayElements(['Labs', 'ECG', 'X-Ray', 'MRI', 'Blood Work'], rand(0, 2)),
+    predictedDeterioration: rand(0, 100),
+    assignedTeam: faker.helpers.arrayElements(['Dr. Smith', 'Nurse Johnson', 'Dr. Lee', 'Tech Williams'], rand(1, 2))
+  };
+});
 
-// Generate mock patients list
-const genPatients = (n = 20) => Array.from({ length: n }).map((_, i) => ({
-  id: `p-${i+1}`,
-  name: patientName(i),
-  age: rand(18,85),
-  gender: faker.helpers.arrayElement(['Male','Female','Other']),
-  nextAppointment: new Date(Date.now() + rand(1,20) * 86400000).toLocaleDateString(),
-  priority: faker.helpers.arrayElement(['High','Medium','Low']),
-  tags: faker.helpers.arrayElement(['Follow-up','New','Chronic','Post-op']),
-  condition: faker.helpers.arrayElement(['Hypertension','Diabetes','Asthma','COPD','Fracture']),
-  vitalsHistory: Array.from({ length: 7 }).map((__, j) => ({
-    date: new Date(Date.now() - j*86400000).toLocaleDateString(),
-    bp: `${rand(100,150)}/${rand(60,95)}`,
-    hr: rand(60,110),
-    sugar: rand(80,180),
-    temp: +(36 + Math.random()*2).toFixed(1),
-  })),
-  photo: `https://i.pravatar.cc/150?img=${rand(1,70)}`
-}));
-
-// Colors for charts
-const COLORS = ['#4ade80','#60a5fa','#f59e0b','#f87171','#a78bfa','#06b6d4'];
-
-export default function DoctorDashboardPro() {
-  const { user } = useAuth();
-  const doctorId = user?._id;
-
-  // Debug logging
-  console.log('DoctorDashboard - user:', user);
-  console.log('DoctorDashboard - doctorId:', doctorId);
-
-  // Core state
-  const [dark, setDark] = useState(false);
-  const [highContrast, setHighContrast] = useState(false);
-
-  // Real data state
-  const [realPatients, setRealPatients] = useState([]);
-  const [realAppointments, setRealAppointments] = useState([]);
-  const [realVitals, setRealVitals] = useState([]);
-  const [realNotifications, setRealNotifications] = useState([]);
-  const [realAnalytics, setRealAnalytics] = useState({});
-
-  // Fake data state (fallback)
-  const [fakePatients, setFakePatients] = useState(() => genPatients(20));
-  const [fakeAppointments, setFakeAppointments] = useState(() => genAppointments(9));
-  const [fakeVitals, setFakeVitals] = useState(() => fakePatients.slice(0,8).map((p,i)=>({ id:`v-${i}`, patient:p.name, bp:`${rand(100,150)}/${rand(60,95)}`, sugar:rand(80,180), temp:+(36+Math.random()*2).toFixed(1), hr:rand(60,110), ts:new Date().toLocaleTimeString() })));
-  const [fakeNotifications, setFakeNotifications] = useState([]);
-
-  // Combined data state
-  const [patients, setPatients] = useState([]);
-  const [appointments, setAppointments] = useState([]);
-  const [vitals, setVitals] = useState([]);
-
-  // Other state
-  const [feedback, setFeedback] = useState(() => Array.from({length:4}).map((_,i)=>({ id:`f-${i}`, patient:patientName(i), rating:rand(3,5), comment: faker.lorem.sentence(), date: new Date(Date.now()-i*86400000).toLocaleDateString() })));
-  const [selectedPatient, setSelectedPatient] = useState(null);
-  const [search, setSearch] = useState('');
-  const [filterPriority, setFilterPriority] = useState('All');
-  const [page, setPage] = useState(0);
-  const perPage = 6;
-  const [widgets, setWidgets] = useState(['overview','vitals','appointments','analytics']);
-  const [bulkSelection, setBulkSelection] = useState([]);
-  const [notifications, setNotifications] = useState([]);
-  const [loading, setLoading] = useState({
-    patients: false,
-    appointments: false,
-    vitals: false,
-    notifications: false,
+const generateAppointments = (count = 12, patients) =>
+  Array.from({ length: count }).map((_, i) => {
+    const patient = patients[i % patients.length];
+    return {
+      id: `apt-${i + 1}`,
+      date: new Date(Date.now() + (i < 4 ? 0 : i) * 3600 * 1000).toLocaleDateString(),
+      time: `${rand(8, 17)}:${["00", "15", "30", "45"][rand(0, 3)]}`,
+      patient: patient.name,
+      patientId: patient.id,
+      reason: faker.helpers.arrayElement(['Routine Checkup', 'Follow-up', 'Lab Results', 'Consultation', 'Emergency', 'Vaccination']),
+      status: faker.helpers.arrayElement(['Confirmed', 'Pending', 'Completed', 'Cancelled', 'In Progress']),
+      waitTime: rand(0, 45),
+      type: faker.helpers.arrayElement(['In-person', 'Telemedicine'])
+    };
   });
 
-  // Fetch data on component mount
-  useEffect(() => {
-    fetchPatients();
-    fetchAppointments();
-    fetchVitals();
-    fetchNotifications();
-  }, [doctorId]);
+const generateTeamMembers = () => [
+  { id: 't1', name: 'Dr. Sarah Chen', role: 'Cardiologist', status: 'available', avatar: 'https://i.pravatar.cc/150?img=1' },
+  { id: 't2', name: 'Nurse James Wilson', role: 'RN', status: 'busy', currentPatient: 'Room 302', avatar: 'https://i.pravatar.cc/150?img=2' },
+  { id: 't3', name: 'Dr. Michael Brown', role: 'Internist', status: 'available', avatar: 'https://i.pravatar.cc/150?img=3' },
+  { id: 't4', name: 'Tech Lisa Park', role: 'Lab Tech', status: 'offline', avatar: 'https://i.pravatar.cc/150?img=4' },
+];
 
-  // Fetch patients with fallback
-  const fetchPatients = async () => {
-    setLoading(prev => ({ ...prev, patients: true }));
-    try {
-      const { data, isRealData } = await fetchWithFallback(
-        () => doctorAPI.getPatientQueue(doctorId),
-        () => fallbackData.generatePatients(20)
-      );
-      if (isRealData) {
-        setRealPatients(data);
-        setFakePatients([]);
-        // Pad with fake patients to ensure at least 20 total
-        const fakeCount = Math.max(0, 20 - data.length);
-        const fakeData = fakeCount > 0 ? fallbackData.generatePatients(fakeCount) : [];
-        setFakePatients(fakeData);
-        setPatients([...data, ...fakeData]);
-      } else {
-        setRealPatients([]);
-        setFakePatients(data);
-        setPatients(data);
-      }
-    } catch (error) {
-      console.error('Error fetching patients:', error);
-      const fallbackPatients = fallbackData.generatePatients(20);
-      setPatients(fallbackPatients);
-      setFakePatients(fallbackPatients);
-      setRealPatients([]);
-    }
-    setLoading(prev => ({ ...prev, patients: false }));
+// Colors
+const PRIORITY_COLORS = { Critical: '#dc2626', High: '#f59e0b', Medium: '#3b82f6', Low: '#22c55e' };
+
+// Sortable Widget Component
+function SortableWidget({ widget, children, onToggleCollapse, onResize }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: widget.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
   };
 
-  // Fetch appointments with fallback
-  const fetchAppointments = async () => {
-    if (!doctorId) return;
-    setLoading(prev => ({ ...prev, appointments: true }));
-    try {
-      const { data, isRealData } = await fetchWithFallback(
-        () => doctorAPI.getMyAppointments(doctorId),
-        () => fallbackData.generateAppointments(9)
-      );
-      if (isRealData) {
-        setRealAppointments(Array.isArray(data) ? data : []);
-        setFakeAppointments([]);
-        // Pad with fake appointments to ensure at least 9 total
-        const fakeCount = Math.max(0, 9 - (Array.isArray(data) ? data.length : 0));
-        const fakeData = fakeCount > 0 ? fallbackData.generateAppointments(fakeCount) : [];
-        setFakeAppointments(fakeData);
-        setAppointments([...(Array.isArray(data) ? data : []), ...fakeData]);
-      } else {
-        setRealAppointments([]);
-        setFakeAppointments(data);
-        setAppointments(data);
-      }
-    } catch (error) {
-      console.error('Error fetching appointments:', error);
-      const fallbackAppointments = fallbackData.generateAppointments(9);
-      setAppointments(fallbackAppointments);
-      setFakeAppointments(fallbackAppointments);
-      setRealAppointments([]);
-    }
-    setLoading(prev => ({ ...prev, appointments: false }));
-  };
-
-  // Fetch vitals with fallback
-  const fetchVitals = async () => {
-    setLoading(prev => ({ ...prev, vitals: true }));
-    try {
-      const { data, isRealData } = await fetchWithFallback(
-        () => doctorAPI.getVitalsLive(),
-        () => fallbackData.generateVitals(8)
-      );
-      if (isRealData) {
-        setRealVitals(data);
-        setFakeVitals([]);
-        // Pad with fake vitals to ensure at least 8 total
-        const fakeCount = Math.max(0, 8 - data.length);
-        const fakeData = fakeCount > 0 ? fallbackData.generateVitals(fakeCount) : [];
-        setFakeVitals(fakeData);
-        setVitals([...data, ...fakeData]);
-      } else {
-        setRealVitals([]);
-        setFakeVitals(data);
-        setVitals(data);
-      }
-    } catch (error) {
-      console.error('Error fetching vitals:', error);
-      const fallbackVitals = fallbackData.generateVitals(8);
-      setVitals(fallbackVitals);
-      setFakeVitals(fallbackVitals);
-      setRealVitals([]);
-    }
-    setLoading(prev => ({ ...prev, vitals: false }));
-  };
-
-  // Fetch notifications with fallback
-  const fetchNotifications = async () => {
-    setLoading(prev => ({ ...prev, notifications: true }));
-    try {
-      const { data, isRealData } = await fetchWithFallback(
-        () => doctorAPI.getNotifications(),
-        () => fallbackData.generateNotifications(6)
-      );
-      if (isRealData) {
-        setRealNotifications(data);
-        setFakeNotifications([]);
-        // Pad with fake notifications to ensure at least 6 total
-        const fakeCount = Math.max(0, 6 - data.length);
-        const fakeData = fakeCount > 0 ? fallbackData.generateNotifications(fakeCount) : [];
-        setFakeNotifications(fakeData);
-        setNotifications([...data, ...fakeData]);
-      } else {
-        setRealNotifications([]);
-        setFakeNotifications(data);
-        setNotifications(data);
-      }
-    } catch (error) {
-      console.error('Error fetching notifications:', error);
-      const fallbackNotifications = fallbackData.generateNotifications(6);
-      setNotifications(fallbackNotifications);
-      setFakeNotifications(fallbackNotifications);
-      setRealNotifications([]);
-    }
-    setLoading(prev => ({ ...prev, notifications: false }));
-  };
-
-
-
-  // simulated real-time vitals stream
-  useEffect(() => {
-    const t = setInterval(() => {
-      setVitals(prev => {
-        const next = prev.map(v => ({ ...v, bp: `${rand(100,150)}/${rand(60,95)}`, sugar: rand(70,200), temp: +(36 + Math.random()*2).toFixed(1), hr: rand(60,120), ts: new Date().toLocaleTimeString() }));
-        // produce alerts for high-risk
-        const alerts = next.filter(n => {
-          const syst = +n.bp.split('/')[0];
-          return syst > 140 || n.sugar > 180 || n.hr > 110;
-        });
-        if (alerts.length) {
-          setNotifications(notifs => [...alerts.slice(0,2).map(a=>({id:`alert-${Date.now()}`, text:`Abnormal vitals: ${a.patient} BP:${a.bp} Sugar:${a.sugar}`})), ...notifs].slice(0,6));
-        }
-        return next;
-      });
-    }, 8000);
-    return () => clearInterval(t);
-  }, []);
-
-  // derived filtered/paginated
-  const filteredPatients = useMemo(() => patients.filter(p => (filterPriority==='All' || p.priority===filterPriority) && (p.name.toLowerCase().includes(search.toLowerCase()) || p.condition.toLowerCase().includes(search.toLowerCase()))), [patients, search, filterPriority]);
-  const paginated = filteredPatients.slice(page*perPage, (page+1)*perPage);
-  const totalPages = Math.ceil(filteredPatients.length / perPage);
-
-  // analytics mock
-  const appointmentsByDay = useMemo(()=> Array.from({length:7}).map((_,i)=>({ day:`Day ${i+1}`, appointments: rand(5,25) })),[]);
-  const patientRiskBreakdown = useMemo(()=> ({ high: patients.filter(p=>p.priority==='High').length, medium: patients.filter(p=>p.priority==='Medium').length, low: patients.filter(p=>p.priority==='Low').length }), [patients]);
-
-  // Patient actions
-  const openPatient = (p) => setSelectedPatient(p);
-  const closePatient = () => setSelectedPatient(null);
-
-
-
-  // Bulk actions
-  const toggleBulk = (id) => setBulkSelection(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id]);
-  const bulkMessage = async () => {
-    if (bulkSelection.length === 0) return;
-    try {
-      // For real patients, call API
-      const realIds = bulkSelection.filter(id => realPatients.find(p => p.id === id));
-      if (realIds.length > 0) {
-        const result = await doctorAPI.bulkMessagePatients({ patientIds: realIds, message: 'Bulk message from doctor dashboard' });
-        alert(`Bulk message sent successfully to ${result.sentCount} patients`);
-      } else {
-        alert(`Bulk message sent to ${bulkSelection.length} patients (demo)`);
-      }
-      setBulkSelection([]);
-    } catch (error) {
-      console.error('Error sending bulk message:', error);
-      alert('Failed to send bulk message');
-    }
-  };
-
-  // Start telemedicine call
-  const startVideoCall = async (patient) => {
-    try {
-      if (realPatients.find(p => p.id === patient.id)) {
-        const result = await doctorAPI.startTelemedicineCall({ patientId: patient.id, doctorId });
-        alert(`Video call session started with ${patient.name}. Session ID: ${result.sessionId}`);
-      } else {
-        alert(`Starting video call with ${patient.name} (demo)`);
-      }
-    } catch (error) {
-      console.error('Error starting video call:', error);
-      alert('Failed to start video call');
-    }
-  };
-
-  // Export patient timeline
-  const exportPatientTimeline = async (patient) => {
-    try {
-      if (realPatients.find(p => p.id === patient.id)) {
-        const result = await doctorAPI.exportPatientData({ patientId: patient.id });
-        alert(`Timeline PDF exported successfully for ${patient.name}. Download link: ${result.downloadUrl}`);
-      } else {
-        alert(`Exporting timeline PDF for ${patient.name} (demo)`);
-      }
-    } catch (error) {
-      console.error('Error exporting timeline:', error);
-      alert('Failed to export timeline');
-    }
-  };
-
-  // Sync with EHR
-  const syncWithEHR = async () => {
-    try {
-      await doctorAPI.syncWithEHR({ doctorId });
-      alert('Syncing with EHR');
-    } catch (error) {
-      console.error('Error syncing with EHR:', error);
-      alert('Failed to sync with EHR');
-    }
-  };
-
-  // Accessibility & theme
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', dark);
-    document.documentElement.classList.toggle('contrast-more', highContrast);
-  }, [dark, highContrast]);
-
-  // Update appointment status
-  const markAppointmentComplete = async (appointmentId) => {
-    try {
-      const realAppointment = realAppointments.find(a => a.id === appointmentId);
-      if (realAppointment) {
-        await doctorAPI.updateAppointmentStatus(appointmentId, 'Completed');
-        // Refresh appointments after update
-        fetchAppointments();
-      } else {
-        alert('Marked appointment complete (demo)');
-      }
-    } catch (error) {
-      console.error('Error updating appointment status:', error);
-      alert('Failed to update appointment status');
-    }
-  };
-
-  // Refresh vitals from API
-  const refreshVitals = async () => {
-    try {
-      setLoading(prev => ({ ...prev, vitals: true }));
-      const { data, isRealData } = await fetchWithFallback(
-        () => doctorAPI.getVitalsLive(),
-        () => fallbackData.generateVitals(8)
-      );
-      if (isRealData) {
-        setRealVitals(data);
-        setFakeVitals([]);
-        const fakeCount = Math.max(0, 8 - data.length);
-        const fakeData = fakeCount > 0 ? fallbackData.generateVitals(fakeCount) : [];
-        setFakeVitals(fakeData);
-        setVitals([...data, ...fakeData]);
-      } else {
-        setRealVitals([]);
-        setFakeVitals(data);
-        setVitals(data);
-      }
-    } catch (error) {
-      console.error('Error refreshing vitals:', error);
-      alert('Failed to refresh vitals');
-    } finally {
-      setLoading(prev => ({ ...prev, vitals: false }));
-    }
-  };
-
-  // Acknowledge notification
-  const acknowledgeNotification = async (notificationId) => {
-    try {
-      const realNotification = realNotifications.find(n => n.id === notificationId);
-      if (realNotification) {
-        await doctorAPI.acknowledgeNotification(notificationId);
-        // Refresh notifications after acknowledge
-        fetchNotifications();
-      } else {
-        alert('Notification acknowledged (demo)');
-      }
-    } catch (error) {
-      console.error('Error acknowledging notification:', error);
-      alert('Failed to acknowledge notification');
-    }
-  };
-
-  // Quick tools functions
-  const performECGTest = async () => {
-    try {
-      await doctorAPI.performECGTest({ doctorId });
-      alert('ECG test initiated');
-    } catch (error) {
-      console.error('Error performing ECG test:', error);
-      alert('Failed to perform ECG test');
-    }
-  };
-
-  const orderLabs = async () => {
-    try {
-      await doctorAPI.orderLabs({ doctorId });
-      alert('Lab order initiated');
-    } catch (error) {
-      console.error('Error ordering labs:', error);
-      alert('Failed to order labs');
-    }
-  };
-
-  const referPatient = async () => {
-    try {
-      await doctorAPI.referPatient({ doctorId });
-      alert('Patient referral initiated');
-    } catch (error) {
-      console.error('Error referring patient:', error);
-      alert('Failed to refer patient');
-    }
-  };
-
-
-
-  // Patient notes and consultation
-  const savePatientNote = async (patient) => {
-    try {
-      if (realPatients.find(p => p.id === patient.id)) {
-        await doctorAPI.addPatientNotes({ patientId: patient.id, note: 'Clinical note from dashboard' });
-        alert('Note saved');
-      } else {
-        alert('Note saved (demo)');
-      }
-    } catch (error) {
-      console.error('Error saving note:', error);
-      alert('Failed to save note');
-    }
-  };
-
-  const startConsultation = async (patient) => {
-    try {
-      if (realPatients.find(p => p.id === patient.id)) {
-        await doctorAPI.startConsultation({ patientId: patient.id, doctorId });
-        alert('Consultation started');
-      } else {
-        alert('Consultation started (demo)');
-      }
-    } catch (error) {
-      console.error('Error starting consultation:', error);
-      alert('Failed to start consultation');
-    }
+  const sizeClasses = {
+    small: 'col-span-1',
+    medium: 'col-span-2',
+    large: 'col-span-3'
   };
 
   return (
-    <div className={`min-h-screen p-6 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100`}>
-      <header className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-3"><FaStethoscope /> Doctor Dashboard</h1>
-          <p className="text-sm text-gray-500">Overview, patient management, vitals monitoring and clinical tools</p>
-        </div>
+    <motion.div
+      ref={setNodeRef}
+      style={style}
+      className={`${sizeClasses[widget.size]} bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden border border-gray-100 dark:border-gray-700`}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+    >
+      <div className="flex items-center justify-between p-3 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 border-b border-gray-200 dark:border-gray-600">
         <div className="flex items-center gap-2">
-          <button onClick={() => setDark(d => !d)} aria-pressed={dark} className="px-3 py-2 rounded border">{dark ? 'Light' : 'Dark'}</button>
-          <button onClick={() => setHighContrast(h => !h)} className="px-3 py-2 rounded border">High Contrast</button>
-          <button onClick={syncWithEHR} className="px-3 py-2 rounded border">Sync EHR</button>
-          <button onClick={() => {
-            fetchPatients();
-            fetchAppointments();
-            refreshVitals();
-            fetchNotifications();
-          }} className="px-3 py-2 rounded border bg-blue-600 text-white hover:bg-blue-700">
-            <FaSync className="inline mr-1" /> Refresh All
+          <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded">
+            <FaGripVertical className="text-gray-400" />
+          </div>
+          <h3 className="font-semibold text-gray-800 dark:text-gray-200">{widget.title}</h3>
+        </div>
+        <div className="flex items-center gap-1">
+          <button onClick={() => onResize(widget.id, 'small')} className={`p-1 rounded ${widget.size === 'small' ? 'bg-blue-100 text-blue-600' : 'hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
+            <FaCompress size={12} />
           </button>
-          {(loading.patients || loading.appointments || loading.vitals || loading.notifications) && (
-            <div className="text-sm text-gray-500">Loading...</div>
-          )}
+          <button onClick={() => onResize(widget.id, 'large')} className={`p-1 rounded ${widget.size === 'large' ? 'bg-blue-100 text-blue-600' : 'hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
+            <FaExpand size={12} />
+          </button>
+          <button onClick={() => onToggleCollapse(widget.id)} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded">
+            {widget.collapsed ? <FaChevronDown size={12} /> : <FaChevronUp size={12} />}
+          </button>
         </div>
-      </header>
+      </div>
+      <AnimatePresence>
+        {!widget.collapsed && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="p-4"
+          >
+            {children}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
 
-      {/* Top row: status, quick analytics */}
-      <section className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-4 gap-4 mt-6">
-        <div className="rounded-lg p-4 bg-white dark:bg-gray-800 shadow">
-          <div className="text-sm text-gray-500">Live Data</div>
-          <div className="mt-2 text-xl font-semibold flex items-center gap-2">{vitals.length}<span className="text-xs text-gray-400">streams</span></div>
-          <div className="mt-3 text-xs text-gray-500">Last updated: {new Date().toLocaleTimeString()}</div>
-          <div className="mt-3 flex gap-2">
-            <button onClick={() => {
-              // Acknowledge all notifications
-              realNotifications.forEach(n => acknowledgeNotification(n.id));
-              setNotifications([]);
-              alert('Acknowledged all alerts');
-            }} className="px-2 py-1 bg-emerald-600 text-white rounded">Acknowledge</button>
-            <button onClick={() => setNotifications(n => [...n, { id: `n-${Date.now()}`, text: 'Manual check requested' }])} className="px-2 py-1 border rounded">Add Note</button>
-          </div>
-        </div>
+// Sparkline Component
+function Sparkline({ data, dataKey, color = '#3b82f6', height = 30 }) {
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <LineChart data={data}>
+        <Line type="monotone" dataKey={dataKey} stroke={color} strokeWidth={1.5} dot={false} />
+      </LineChart>
+    </ResponsiveContainer>
+  );
+}
 
-        <div className="rounded-lg p-4 bg-white dark:bg-gray-800 shadow col-span-2">
-          <div className="flex justify-between items-center">
-            <div>
-              <div className="text-sm text-gray-500">Appointments (7 days)</div>
-              <div className="text-lg font-semibold mt-1">{appointments.reduce((s,a)=>s+(a.status==='Confirmed'?1:0),0)} confirmed</div>
-            </div>
-            <div className="w-48 h-20">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={appointmentsByDay}><XAxis dataKey="day" hide/><YAxis hide/><Tooltip/><Line type="monotone" dataKey="appointments" stroke="#3b82f6" strokeWidth={2} dot={false}/></LineChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        </div>
+// Main Dashboard Component
+export function App() {
+  // State
+  const [dark, setDark] = useState(false);
+  const [highContrast, setHighContrast] = useState(false);
+  const [patients, setPatients] = useState(() => generatePatients(25));
+  const [appointments, setAppointments] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  const [selectedPatient, setSelectedPatient] = useState(null);
+  const [search, setSearch] = useState('');
+  const [searchSuggestions, setSearchSuggestions] = useState([]);
+  const [filterPriority, setFilterPriority] = useState('All');
+  const [sortBy, setSortBy] = useState('risk');
+  const [page, setPage] = useState(0);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [teamMembers] = useState(generateTeamMembers);
+  const [activityLogs, setActivityLogs] = useState([]);
+  const [bulkSelection, setBulkSelection] = useState([]);
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const [commandSearch, setCommandSearch] = useState('');
+  const [hoveredPatient, setHoveredPatient] = useState(null);
+  const [forecastMode, setForecastMode] = useState(false);
+  const [scenarioSliders, setScenarioSliders] = useState({ patientLoad: 50, riskThreshold: 70 });
+  const [customAlerts, setCustomAlerts] = useState({});
+  const [leaderboard] = useState([
+    { name: 'Dr. Chen', score: 156, consultations: 42, followUps: 28 },
+    { name: 'Dr. Brown', score: 142, consultations: 38, followUps: 24 },
+    { name: 'Dr. Smith', score: 128, consultations: 35, followUps: 22 },
+  ]);
+  const [widgets, setWidgets] = useState([
+    { id: 'vitals', title: 'Live Vitals Monitor', type: 'vitals', collapsed: false, size: 'large' },
+    { id: 'queue', title: 'Patient Queue', type: 'queue', collapsed: false, size: 'medium' },
+    { id: 'appointments', title: "Today's Appointments", type: 'appointments', collapsed: false, size: 'medium' },
+    { id: 'analytics', title: 'Real-time Analytics', type: 'analytics', collapsed: false, size: 'large' },
+    { id: 'ai', title: 'AI Insights & Predictions', type: 'ai', collapsed: false, size: 'medium' },
+    { id: 'team', title: 'Team Collaboration', type: 'team', collapsed: false, size: 'small' },
+  ]);
 
-        <div className="rounded-lg p-4 bg-white dark:bg-gray-800 shadow">
-          <div className="text-sm text-gray-500">Risk Breakdown</div>
-          <div className="mt-2 flex gap-2 items-center">
-            <div className="text-lg font-semibold">{patientRiskBreakdown.high}</div>
-            <div className="text-xs text-gray-500">High risk patients</div>
-          </div>
-          <div className="mt-3 text-xs text-gray-500">Quick actions</div>
-          <div className="mt-2 flex gap-2">
-            <button onClick={()=> alert('Start cohort message (demo)')} className="px-2 py-1 border rounded">Message High-risk</button>
-            <button onClick={()=> alert('Export CSV (demo)')} className="px-2 py-1 border rounded">Export</button>
-          </div>
-        </div>
-      </section>
+  const perPage = 6;
+  const commandInputRef = useRef(null);
+  const searchInputRef = useRef(null);
 
-      {/* Main grid */}
-      <main className="max-w-7xl mx-auto mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left column: Patient Queue + Filters */}
-        <section className="col-span-1">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="font-semibold">Patient Queue</h2>
-              <div className="text-xs text-gray-500">
-                {loading.patients ? 'Loading...' : `${filteredPatients.length} matches`}
-              </div>
-            </div>
+  // Initialize appointments
+  useEffect(() => {
+    setAppointments(generateAppointments(12, patients));
+  }, []);
 
-            <div className="flex gap-2 mb-3">
-              <input value={search} onChange={e=>{ setSearch(e.target.value); setPage(0); }} placeholder="Search name, condition" className="flex-1 p-2 border rounded" />
-              <select value={filterPriority} onChange={e=>setFilterPriority(e.target.value)} className="p-2 border rounded">
-                <option>All</option>
-                <option>High</option>
-                <option>Medium</option>
-                <option>Low</option>
-              </select>
-            </div>
+  // Apply theme
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', dark);
+  }, [dark]);
 
-            <div className="grid gap-3">
-              {paginated.map(p=> (
-                <div key={p.id} className={`p-3 rounded border flex items-center gap-3 ${p.priority==='High'?'ring-2 ring-red-200':''}`}>
-                  <img src={p.photo} alt="avatar" className="w-12 h-12 rounded-full" />
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-medium">{p.name}</div>
-                        <div className="text-xs text-gray-500">{p.condition} • {p.age} yrs</div>
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setShowCommandPalette(true);
+      }
+      if (e.key === 'Escape') {
+        setShowCommandPalette(false);
+        setSelectedPatient(null);
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === '/') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Focus command input when palette opens
+  useEffect(() => {
+    if (showCommandPalette && commandInputRef.current) {
+      commandInputRef.current.focus();
+    }
+  }, [showCommandPalette]);
+
+  // Real-time vitals streaming simulation
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setPatients(prev => prev.map(p => {
+        const newVital = {
+          date: new Date().toLocaleDateString(),
+          bp: `${rand(90, 180)}/${rand(55, 110)}`,
+          hr: rand(50, 140),
+          sugar: rand(60, 280),
+          temp: +(35 + Math.random() * 4).toFixed(1),
+          o2: rand(85, 100),
+          timestamp: Date.now()
+        };
+
+        // Check for alerts
+        const systolic = parseInt(newVital.bp.split('/')[0]);
+        const isAbnormal = systolic > 160 || systolic < 90 || newVital.hr > 120 || newVital.hr < 50 ||
+          newVital.sugar > 200 || newVital.o2 < 92;
+
+        if (isAbnormal && !customAlerts[p.id]) {
+          const alertType = systolic > 160 || newVital.hr > 120 ? 'critical' : 'warning';
+          setNotifications(n => [{
+            id: `alert-${Date.now()}-${p.id}`,
+            type: alertType,
+            title: alertType === 'critical' ? 'Critical Vitals Alert!' : 'Abnormal Vitals',
+            message: `${p.name}: BP ${newVital.bp}, HR ${newVital.hr}, O₂ ${newVital.o2}%`,
+            timestamp: new Date(),
+            patientId: p.id,
+            actions: [
+              { label: 'View Patient', action: 'view' },
+              { label: 'Start Call', action: 'call' },
+              { label: 'Acknowledge', action: 'ack' }
+            ],
+            read: false,
+            snoozed: false
+          }, ...n.slice(0, 19)]);
+        }
+
+        // Update risk score based on vitals
+        const newRiskScore = Math.min(100, Math.max(0, p.riskScore + (isAbnormal ? rand(1, 5) : rand(-3, 1))));
+        const newPriority = newRiskScore > 80 ? 'Critical' : newRiskScore > 60 ? 'High' : newRiskScore > 30 ? 'Medium' : 'Low';
+
+        return {
+          ...p,
+          vitalsHistory: [newVital, ...p.vitalsHistory.slice(0, 13)],
+          riskScore: newRiskScore,
+          priority: newPriority,
+          predictedDeterioration: Math.min(100, Math.max(0, p.predictedDeterioration + rand(-5, 10)))
+        };
+      }));
+
+      // Update appointment wait times
+      setAppointments(prev => prev.map(a => ({
+        ...a,
+        waitTime: a.status === 'Pending' ? Math.max(0, a.waitTime + rand(-2, 3)) : a.waitTime
+      })));
+
+      // Add activity log
+      const actions = ['updated vitals', 'checked in', 'completed consultation', 'ordered labs'];
+      if (Math.random() > 0.7) {
+        setActivityLogs(prev => [{
+          id: `log-${Date.now()}`,
+          user: teamMembers[rand(0, teamMembers.length - 1)].name,
+          action: actions[rand(0, actions.length - 1)],
+          target: patients[rand(0, patients.length - 1)].name,
+          timestamp: new Date()
+        }, ...prev.slice(0, 9)]);
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [customAlerts, patients, teamMembers]);
+
+  // Live search suggestions
+  useEffect(() => {
+    if (search.length > 0) {
+      const suggestions = patients
+        .filter(p => p.name.toLowerCase().includes(search.toLowerCase()) ||
+          p.condition.toLowerCase().includes(search.toLowerCase()))
+        .slice(0, 5)
+        .map(p => p.name);
+      setSearchSuggestions(suggestions);
+    } else {
+      setSearchSuggestions([]);
+    }
+  }, [search, patients]);
+
+  // Derived data
+  const sortedPatients = useMemo(() => {
+    let filtered = patients.filter(p =>
+      (filterPriority === 'All' || p.priority === filterPriority) &&
+      (p.name.toLowerCase().includes(search.toLowerCase()) ||
+        p.condition.toLowerCase().includes(search.toLowerCase()) ||
+        p.tags.some(t => t.toLowerCase().includes(search.toLowerCase())))
+    );
+
+    return filtered.sort((a, b) => {
+      switch (sortBy) {
+        case 'risk': return b.riskScore - a.riskScore;
+        case 'name': return a.name.localeCompare(b.name);
+        case 'appointment': return new Date(a.nextAppointment).getTime() - new Date(b.nextAppointment).getTime();
+        case 'deterioration': return b.predictedDeterioration - a.predictedDeterioration;
+        default: return 0;
+      }
+    });
+  }, [patients, filterPriority, search, sortBy]);
+
+  const paginatedPatients = sortedPatients.slice(page * perPage, (page + 1) * perPage);
+  const totalPages = Math.ceil(sortedPatients.length / perPage);
+
+  const criticalPatients = useMemo(() =>
+    patients.filter(p => p.priority === 'Critical' || p.predictedDeterioration > 70).slice(0, 3),
+    [patients]);
+
+  const analyticsData = useMemo(() => ({
+    appointmentsByHour: Array.from({ length: 10 }).map((_, i) => ({
+      hour: `${8 + i}:00`,
+      appointments: rand(2, 12),
+      completed: rand(1, 8)
+    })),
+    riskDistribution: [
+      { name: 'Critical', value: patients.filter(p => p.priority === 'Critical').length, color: '#dc2626' },
+      { name: 'High', value: patients.filter(p => p.priority === 'High').length, color: '#f59e0b' },
+      { name: 'Medium', value: patients.filter(p => p.priority === 'Medium').length, color: '#3b82f6' },
+      { name: 'Low', value: patients.filter(p => p.priority === 'Low').length, color: '#22c55e' },
+    ],
+    weeklyTrend: Array.from({ length: 7 }).map((_, i) => ({
+      day: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][i],
+      patients: rand(15, 40),
+      consultations: rand(10, 30),
+      emergencies: rand(0, 5)
+    })),
+    conditionBreakdown: [
+      { condition: 'Hypertension', count: rand(20, 40), risk: rand(50, 80) },
+      { condition: 'Diabetes', count: rand(15, 35), risk: rand(40, 70) },
+      { condition: 'Heart Failure', count: rand(10, 25), risk: rand(60, 90) },
+      { condition: 'COPD', count: rand(8, 20), risk: rand(50, 75) },
+      { condition: 'Cancer', count: rand(5, 15), risk: rand(70, 95) },
+    ]
+  }), [patients]);
+
+  // Forecast data (simulated AI prediction)
+  const forecastData = useMemo(() => {
+    if (!forecastMode) return [];
+    const lastVitals = patients[0]?.vitalsHistory[0];
+    if (!lastVitals) return [];
+
+    return Array.from({ length: 48 }).map((_, i) => ({
+      hour: i,
+      bp: parseInt(lastVitals.bp.split('/')[0]) + rand(-10, 10) + (i * (Math.random() > 0.5 ? 0.5 : -0.3)),
+      hr: lastVitals.hr + rand(-5, 5) + (i * (Math.random() > 0.5 ? 0.2 : -0.1)),
+      predicted: true
+    }));
+  }, [forecastMode, patients]);
+
+  // Sensors for drag and drop
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  // Handlers
+  const handleDragEnd = (event) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      setWidgets(items => {
+        const oldIndex = items.findIndex(i => i.id === active.id);
+        const newIndex = items.findIndex(i => i.id === over.id);
+        return arrayMove(items, oldIndex, newIndex);
+      });
+    }
+  };
+
+  const toggleWidgetCollapse = (id) => {
+    setWidgets(prev => prev.map(w => w.id === id ? { ...w, collapsed: !w.collapsed } : w));
+  };
+
+  const resizeWidget = (id, size) => {
+    setWidgets(prev => prev.map(w => w.id === id ? { ...w, size } : w));
+  };
+
+  const acknowledgeNotification = (id) => {
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+  };
+
+  const snoozeNotification = (id, minutes) => {
+    setNotifications(prev => prev.map(n =>
+      n.id === id ? { ...n, snoozed: true, snoozeUntil: new Date(Date.now() + minutes * 60000) } : n
+    ));
+  };
+
+  const dismissNotification = (id) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+  };
+
+  const startVideoCall = (patient) => {
+    alert(`Starting video call with ${patient.name}...`);
+    setActivityLogs(prev => [{
+      id: `log-${Date.now()}`,
+      user: 'You',
+      action: 'started video call with',
+      target: patient.name,
+      timestamp: new Date()
+    }, ...prev.slice(0, 9)]);
+  };
+
+  const updateAppointmentStatus = (id, status) => {
+    setAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a));
+  };
+
+  const toggleBulkSelection = (id) => {
+    setBulkSelection(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  const bulkMessage = () => {
+    if (bulkSelection.length > 0) {
+      alert(`Sending message to ${bulkSelection.length} patients...`);
+      setBulkSelection([]);
+    }
+  };
+
+  const exportData = () => {
+    const data = {
+      patients: sortedPatients,
+      appointments,
+      analytics: analyticsData,
+      exportDate: new Date().toISOString()
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `dashboard-export-${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+  };
+
+  // Command palette commands
+  const commands = [
+    { id: 'search', label: 'Search patients...', action: () => searchInputRef.current?.focus() },
+    { id: 'dark', label: 'Toggle dark mode', action: () => setDark(d => !d) },
+    { id: 'export', label: 'Export dashboard data', action: exportData },
+    { id: 'refresh', label: 'Refresh all data', action: () => window.location.reload() },
+    { id: 'critical', label: 'View critical patients only', action: () => setFilterPriority('Critical') },
+    { id: 'all', label: 'Show all patients', action: () => setFilterPriority('All') },
+    { id: 'forecast', label: 'Toggle vitals forecast', action: () => setForecastMode(f => !f) },
+  ];
+
+  const filteredCommands = commands.filter(c =>
+    c.label.toLowerCase().includes(commandSearch.toLowerCase())
+  );
+
+  const unreadNotifications = notifications.filter(n => !n.read && !n.snoozed);
+
+  // Render widget content
+  const renderWidgetContent = (widget) => {
+    switch (widget.type) {
+      case 'vitals':
+        return (
+          <div className="space-y-4">
+            {/* Critical Alerts Bar */}
+            {criticalPatients.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="bg-gradient-to-r from-red-500 to-orange-500 text-white p-3 rounded-lg flex items-center justify-between"
+              >
+                <div className="flex items-center gap-2">
+                  <FaExclamationTriangle className="animate-pulse" />
+                  <span className="font-semibold">{criticalPatients.length} Critical Patients Require Attention</span>
+                </div>
+                <div className="flex gap-2">
+                  {criticalPatients.slice(0, 2).map(p => (
+                    <button
+                      key={p.id}
+                      onClick={() => setSelectedPatient(p)}
+                      className="px-2 py-1 bg-white/20 rounded text-sm hover:bg-white/30"
+                    >
+                      {p.name.split(' ')[0]}
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+
+            {/* Vitals Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+              {patients.slice(0, 8).map(p => {
+                const latest = p.vitalsHistory[0];
+                const systolic = parseInt(latest?.bp?.split('/')[0] || '0');
+                const isAbnormal = systolic > 150 || latest?.hr > 110 || latest?.o2 < 94;
+
+                return (
+                  <motion.div
+                    key={p.id}
+                    className={`p-3 rounded-lg border-2 transition-all cursor-pointer ${isAbnormal
+                      ? 'border-red-400 bg-red-50 dark:bg-red-900/20 animate-pulse'
+                      : 'border-gray-200 dark:border-gray-600 hover:border-blue-400'
+                      }`}
+                    onClick={() => setSelectedPatient(p)}
+                    whileHover={{ scale: 1.02 }}
+                    onMouseEnter={() => setHoveredPatient(p.id)}
+                    onMouseLeave={() => setHoveredPatient(null)}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-2 h-2 rounded-full ${p.onlineStatus === 'online' ? 'bg-green-500' : p.onlineStatus === 'busy' ? 'bg-yellow-500' : 'bg-gray-400'
+                          }`} />
+                        <span className="font-medium text-sm truncate">{p.name}</span>
                       </div>
-                      <div className="text-xs text-gray-500">Next: {p.nextAppointment}</div>
+                      <span className={`text-xs px-1.5 py-0.5 rounded-full text-white`}
+                        style={{ backgroundColor: PRIORITY_COLORS[p.priority] }}>
+                        {p.priority}
+                      </span>
                     </div>
-                    <div className="mt-2 flex items-center gap-2">
-                      <button onClick={()=> openPatient(p)} className="px-2 py-1 border rounded text-sm">Open</button>
-                      <button onClick={()=> startVideoCall(p)} className="px-2 py-1 bg-blue-600 text-white rounded text-sm"><FaVideo className='inline mr-1'/> Video</button>
-                      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={bulkSelection.includes(p.id)} onChange={()=>toggleBulk(p.id)}/> Select</label>
+
+                    <div className="grid grid-cols-2 gap-1 text-xs">
+                      <div className={`flex items-center gap-1 ${systolic > 150 ? 'text-red-600 font-bold' : ''}`}>
+                        <FaHeartbeat /> {latest?.bp || 'N/A'}
+                      </div>
+                      <div className={`flex items-center gap-1 ${(latest?.hr || 0) > 110 ? 'text-red-600 font-bold' : ''}`}>
+                        <FaTint /> {latest?.hr || 'N/A'} bpm
+                      </div>
+                      <div className={`flex items-center gap-1 ${(latest?.o2 || 100) < 94 ? 'text-red-600 font-bold' : ''}`}>
+                        <FaLungs /> {latest?.o2 || 'N/A'}%
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <FaThermometerHalf /> {latest?.temp || 'N/A'}°
+                      </div>
                     </div>
-                  </div>
-                </div>
-              ))}
+
+                    {/* Inline Sparkline */}
+                    <AnimatePresence>
+                      {hoveredPatient === p.id && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 40, opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          className="mt-2"
+                        >
+                          <Sparkline
+                            data={p.vitalsHistory.slice(0, 7).reverse()}
+                            dataKey={(d) => parseInt(d.bp?.split('/')[0] || '0')}
+                            color={isAbnormal ? '#ef4444' : '#3b82f6'}
+                          />
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    <div className="mt-2 flex gap-1">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); startVideoCall(p); }}
+                        className="flex-1 text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 rounded hover:bg-blue-200"
+                      >
+                        <FaVideo className="inline mr-1" /> Call
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCustomAlerts(prev => ({ ...prev, [p.id]: !prev[p.id] }));
+                        }}
+                        className={`text-xs px-2 py-1 rounded ${customAlerts[p.id]
+                          ? 'bg-gray-200 dark:bg-gray-600 text-gray-500'
+                          : 'bg-yellow-100 dark:bg-yellow-900 text-yellow-600 dark:text-yellow-300'
+                          }`}
+                      >
+                        <FaBell className="inline" />
+                      </button>
+                    </div>
+                  </motion.div>
+                );
+              })}
             </div>
 
-            <div className="mt-3 flex items-center justify-between">
-              <div>
-                <button disabled={page===0} onClick={()=>setPage(p=>Math.max(0,p-1))} className="px-2 py-1 border rounded">Prev</button>
-                <button disabled={page===totalPages-1} onClick={()=>setPage(p=>Math.min(totalPages-1,p+1))} className="px-2 py-1 border rounded ml-2">Next</button>
+            {/* Forecast Toggle & Chart */}
+            <div className="mt-4">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="font-semibold flex items-center gap-2">
+                  <FaChartLine /> Vitals Trend {forecastMode && <span className="text-xs text-blue-500">(+ 48h Forecast)</span>}
+                </h4>
+                <button
+                  onClick={() => setForecastMode(f => !f)}
+                  className={`px-3 py-1 text-sm rounded-full flex items-center gap-1 ${forecastMode ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-600'
+                    }`}
+                >
+                  <FaBrain /> AI Forecast
+                </button>
               </div>
-              <div className="text-xs text-gray-500">Page {page+1} / {totalPages}</div>
-            </div>
-
-            <div className="mt-3 flex gap-2">
-              <button disabled={!bulkSelection.length} onClick={bulkMessage} className="px-2 py-1 bg-emerald-600 text-white rounded">Message {bulkSelection.length}</button>
-              <button onClick={()=> setBulkSelection([])} className="px-2 py-1 border rounded">Clear</button>
-            </div>
-          </div>
-
-          {/* Quick tools */}
-          <div className="mt-4 bg-white dark:bg-gray-800 rounded-lg p-4 shadow">
-            <h3 className="font-semibold mb-2">Quick Tools</h3>
-            <div className="grid gap-2">
-              <button onClick={() => performECGTest()} className="px-3 py-2 border rounded text-left">ECG / Rapid Tests</button>
-              <button onClick={() => orderLabs()} className="px-3 py-2 border rounded text-left">Order Labs</button>
-              <button onClick={() => referPatient()} className="px-3 py-2 border rounded text-left">Refer Patient</button>
-            </div>
-          </div>
-
-        </section>
-
-        {/* Middle column: Vitals & Appointments */}
-        <section className="col-span-2">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow">
-            <div className="flex items-center justify-between">
-              <h2 className="font-semibold">Recent Vitals</h2>
-              <div className="flex items-center gap-2">
-                <button onClick={refreshVitals} className="px-2 py-1 border rounded">Refresh</button>
-                {loading.vitals && <div className="text-sm text-gray-500">Loading...</div>}
-                <div className="relative">
-                  <FaBell className='text-gray-500' />
-                  {notifications.length>0 && <span className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full text-xs px-1">{notifications.length}</span>}
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-3 grid grid-cols-1 md:grid-cols-4 gap-3">
-              {vitals.slice(0,4).map(v => (
-                <div key={v.id} className={`p-3 rounded border ${+v.bp.split('/')[0] > 140 ? 'border-red-300' : ''}`}>
-                  <div className="flex items-center justify-between">
-                    <div className="font-medium">{v.patient}</div>
-                    <div className="text-xs text-gray-500">{v.ts}</div>
-                  </div>
-                  <div className="mt-2 text-sm grid grid-cols-2 gap-1">
-                    <div>BP: <strong>{v.bp}</strong></div>
-                    <div>HR: <strong>{v.hr}</strong></div>
-                    <div>Sugar: <strong>{v.sugar}</strong></div>
-                    <div>Temp: <strong>{v.temp}</strong></div>
-                  </div>
-                </div>
-              ))}
-
-            </div>
-
-            <div className="mt-6">
-              <h3 className="font-semibold mb-2">BP Trend (selected patient)</h3>
-              <div className="h-44 bg-gray-50 dark:bg-gray-900 p-2 rounded">
+              <div className="h-48 bg-gray-50 dark:bg-gray-900 rounded-lg p-2">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={patients[0]?.vitalsHistory || []}><XAxis dataKey="date"/><YAxis/><Tooltip/><Line type="monotone" dataKey={(d)=> +d.bp.split('/')[0]} stroke="#ef4444" strokeWidth={2} dot={false}/></LineChart>
+                  <ComposedChart data={[
+                    ...patients[0]?.vitalsHistory.slice(0, 7).reverse().map(v => ({
+                      ...v,
+                      systolic: parseInt(v.bp?.split('/')[0] || '0'),
+                      predicted: false
+                    })),
+                    ...(forecastMode ? forecastData.map((f, i) => ({
+                      date: `+${i}h`,
+                      systolic: f.bp,
+                      hr: f.hr,
+                      predicted: true
+                    })) : [])
+                  ]}>
+                    <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                    <YAxis tick={{ fontSize: 10 }} />
+                    <Tooltip />
+                    <ReferenceLine y={140} stroke="#ef4444" strokeDasharray="3 3" label="High BP" />
+                    <Area type="monotone" dataKey="systolic" fill="#3b82f620" stroke="#3b82f6" strokeWidth={2} />
+                    <Line type="monotone" dataKey="hr" stroke="#22c55e" strokeWidth={2} dot={false} />
+                    {forecastMode && <Brush dataKey="date" height={20} stroke="#8884d8" />}
+                  </ComposedChart>
                 </ResponsiveContainer>
               </div>
             </div>
           </div>
+        );
 
-          <div className="mt-4 bg-white dark:bg-gray-800 rounded-lg p-4 shadow">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold">Today's Appointments</h3>
-              {loading.appointments && <div className="text-sm text-gray-500">Loading...</div>}
-            </div>
-            <div className="grid md:grid-cols-3 gap-3 mt-3">
-              {appointments.map(a=> (
-                <div key={a.id} className="p-3 border rounded">
-                  <div className="flex items-center justify-between"><div className="font-medium">{a.patient}</div><div className={`text-xs ${a.status==='Confirmed'?'text-green-600':a.status==='Pending'?'text-yellow-600':'text-gray-500'}`}>{a.status}</div></div>
-                  <div className="text-xs text-gray-500">{a.date} • {a.time}</div>
-                  <div className="mt-2 text-sm">{a.reason}</div>
-                  <div className="mt-2 flex gap-2">
-                    <button onClick={()=> openPatient(patients.find(p=>p.name===a.patient) || patients[0])} className="px-2 py-1 border rounded text-sm">Open</button>
-                    <button onClick={() => markAppointmentComplete(a.id)} className="px-2 py-1 bg-emerald-600 text-white rounded text-sm">Complete</button>
+      case 'queue':
+        return (
+          <div className="space-y-3">
+            {/* Filters */}
+            <div className="flex flex-wrap gap-2 items-center">
+              <div className="relative flex-1 min-w-[200px]">
+                <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  ref={searchInputRef}
+                  value={search}
+                  onChange={(e) => { setSearch(e.target.value); setPage(0); }}
+                  placeholder="Search patients... (Ctrl+/)"
+                  className="w-full pl-10 pr-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600"
+                />
+                {searchSuggestions.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 bg-white dark:bg-gray-800 border rounded-lg mt-1 shadow-lg z-10">
+                    {searchSuggestions.map((s, i) => (
+                      <button
+                        key={i}
+                        onClick={() => { setSearch(s); setSearchSuggestions([]); }}
+                        className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700"
+                      >
+                        {s}
+                      </button>
+                    ))}
                   </div>
+                )}
+              </div>
+              <select
+                value={filterPriority}
+                onChange={(e) => setFilterPriority(e.target.value)}
+                className="px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600"
+              >
+                <option value="All">All Priority</option>
+                <option value="Critical">Critical</option>
+                <option value="High">High</option>
+                <option value="Medium">Medium</option>
+                <option value="Low">Low</option>
+              </select>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600"
+              >
+                <option value="risk">Sort by Risk</option>
+                <option value="name">Sort by Name</option>
+                <option value="appointment">Sort by Appointment</option>
+                <option value="deterioration">Sort by Deterioration</option>
+              </select>
+            </div>
+
+            {/* Patient List */}
+            <div className="space-y-2 max-h-[400px] overflow-y-auto">
+              {paginatedPatients.map(p => {
+                const hasMissingData = p.missingData.length > 0;
+                return (
+                  <motion.div
+                    key={p.id}
+                    layout
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className={`p-3 rounded-lg border-l-4 flex items-center gap-3 cursor-pointer hover:shadow-md transition-shadow ${p.priority === 'Critical' ? 'border-l-red-500 bg-red-50 dark:bg-red-900/20' :
+                      p.priority === 'High' ? 'border-l-orange-500' :
+                        p.priority === 'Medium' ? 'border-l-blue-500' : 'border-l-green-500'
+                      } bg-white dark:bg-gray-800`}
+                    onClick={() => setSelectedPatient(p)}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={bulkSelection.includes(p.id)}
+                      onChange={(e) => { e.stopPropagation(); toggleBulkSelection(p.id); }}
+                      className="w-4 h-4"
+                    />
+                    <img src={p.photo} alt="" className="w-10 h-10 rounded-full object-cover" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium truncate">{p.name}</span>
+                        <div className={`w-2 h-2 rounded-full ${p.onlineStatus === 'online' ? 'bg-green-500' : p.onlineStatus === 'busy' ? 'bg-yellow-500' : 'bg-gray-400'
+                          }`} />
+                        {hasMissingData && (
+                          <span className="text-xs text-orange-500 flex items-center gap-1">
+                            <FaExclamationCircle /> Missing: {p.missingData.join(', ')}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-gray-500 flex items-center gap-2">
+                        <span>{p.condition}</span>
+                        <span>•</span>
+                        <span>{p.age}y</span>
+                        <span>•</span>
+                        <span>Risk: {p.riskScore}%</span>
+                        {p.predictedDeterioration > 60 && (
+                          <>
+                            <span>•</span>
+                            <span className="text-red-500 flex items-center gap-1">
+                              <FaArrowUp /> Deterioration: {p.predictedDeterioration}%
+                            </span>
+                          </>
+                        )}
+                      </div>
+                      <div className="flex gap-1 mt-1">
+                        {p.tags.map((tag, i) => (
+                          <span key={i} className="text-xs px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded">
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="text-right text-xs text-gray-500">
+                      <div>Next: {p.nextAppointment}</div>
+                      <div className="text-xs">Adherence: {p.adherenceScore}%</div>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); startVideoCall(p); }}
+                        className="p-1.5 bg-blue-100 dark:bg-blue-900 text-blue-600 rounded hover:bg-blue-200"
+                      >
+                        <FaVideo size={12} />
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); }}
+                        className="p-1.5 bg-green-100 dark:bg-green-900 text-green-600 rounded hover:bg-green-200"
+                      >
+                        <FaPhoneAlt size={12} />
+                      </button>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+
+            {/* Pagination & Bulk Actions */}
+            <div className="flex items-center justify-between pt-2 border-t dark:border-gray-600">
+              <div className="flex items-center gap-2">
+                {bulkSelection.length > 0 && (
+                  <>
+                    <span className="text-sm">{bulkSelection.length} selected</span>
+                    <button
+                      onClick={bulkMessage}
+                      className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+                    >
+                      Message All
+                    </button>
+                    <button
+                      onClick={() => setBulkSelection([])}
+                      className="px-3 py-1 border text-sm rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                    >
+                      Clear
+                    </button>
+                  </>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  disabled={page === 0}
+                  onClick={() => setPage(p => Math.max(0, p - 1))}
+                  className="px-3 py-1 border rounded disabled:opacity-50"
+                >
+                  Prev
+                </button>
+                <span className="text-sm">{page + 1} / {totalPages}</span>
+                <button
+                  disabled={page >= totalPages - 1}
+                  onClick={() => setPage(p => p + 1)}
+                  className="px-3 py-1 border rounded disabled:opacity-50"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+
+      case 'appointments':
+        return (
+          <div className="space-y-3">
+            {/* Average Wait Time */}
+            <div className="flex items-center justify-between p-3 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-lg">
+              <div>
+                <div className="text-sm text-gray-500">Average Wait Time</div>
+                <div className="text-2xl font-bold text-blue-600">
+                  {Math.round(appointments.filter(a => a.status === 'Pending').reduce((s, a) => s + a.waitTime, 0) /
+                    (appointments.filter(a => a.status === 'Pending').length || 1))} min
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-sm text-gray-500">Pending</div>
+                <div className="text-xl font-semibold">
+                  {appointments.filter(a => a.status === 'Pending').length}
+                </div>
+              </div>
+            </div>
+
+            {/* Appointment Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[350px] overflow-y-auto">
+              {appointments.slice(0, 8).map(apt => (
+                <motion.div
+                  key={apt.id}
+                  layout
+                  className={`p-3 rounded-lg border ${apt.status === 'In Progress' ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20' :
+                    apt.status === 'Completed' ? 'border-green-400 bg-green-50 dark:bg-green-900/20' :
+                      apt.status === 'Cancelled' ? 'border-gray-300 bg-gray-50 dark:bg-gray-700 opacity-60' :
+                        'border-gray-200 dark:border-gray-600'
+                    }`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="font-medium">{apt.patient}</div>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${apt.status === 'Confirmed' ? 'bg-green-100 text-green-700' :
+                      apt.status === 'Pending' ? 'bg-yellow-100 text-yellow-700' :
+                        apt.status === 'In Progress' ? 'bg-blue-100 text-blue-700' :
+                          apt.status === 'Completed' ? 'bg-gray-100 text-gray-700' :
+                            'bg-red-100 text-red-700'
+                      }`}>
+                      {apt.status}
+                    </span>
+                  </div>
+                  <div className="text-xs text-gray-500 flex items-center gap-2 mb-2">
+                    <FaClock /> {apt.time}
+                    <span>•</span>
+                    {apt.type === 'Telemedicine' ? <FaVideo /> : <FaHospital />}
+                    {apt.type}
+                    {apt.status === 'Pending' && (
+                      <>
+                        <span>•</span>
+                        <span className="text-orange-500">Wait: {apt.waitTime}min</span>
+                      </>
+                    )}
+                  </div>
+                  <div className="text-sm text-gray-600 dark:text-gray-300 mb-2">{apt.reason}</div>
+                  <div className="flex gap-1">
+                    {apt.status === 'Pending' && (
+                      <button
+                        onClick={() => updateAppointmentStatus(apt.id, 'In Progress')}
+                        className="flex-1 text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                      >
+                        Start
+                      </button>
+                    )}
+                    {apt.status === 'In Progress' && (
+                      <button
+                        onClick={() => updateAppointmentStatus(apt.id, 'Completed')}
+                        className="flex-1 text-xs px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700"
+                      >
+                        Complete
+                      </button>
+                    )}
+                    {(apt.status === 'Pending' || apt.status === 'Confirmed') && (
+                      <button
+                        onClick={() => updateAppointmentStatus(apt.id, 'Cancelled')}
+                        className="text-xs px-2 py-1 border rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                      >
+                        Cancel
+                      </button>
+                    )}
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+
+            {/* AI Suggested Slots */}
+            <div className="p-3 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-lg">
+              <div className="flex items-center gap-2 text-sm font-medium text-purple-700 dark:text-purple-300 mb-2">
+                <FaRobot /> AI Suggested Optimal Slots
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                {['10:30 AM', '2:00 PM', '4:15 PM'].map(slot => (
+                  <button
+                    key={slot}
+                    className="px-3 py-1 bg-white dark:bg-gray-700 border border-purple-200 dark:border-purple-600 rounded-full text-sm hover:bg-purple-100 dark:hover:bg-purple-800"
+                  >
+                    {slot}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+
+      case 'analytics':
+        return (
+          <div className="space-y-4">
+            {/* Scenario Simulation */}
+            <div className="p-3 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 rounded-lg">
+              <div className="flex items-center gap-2 text-sm font-medium mb-3">
+                <FaCog /> Scenario Simulation
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs text-gray-500">Patient Load: {scenarioSliders.patientLoad}%</label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={scenarioSliders.patientLoad}
+                    onChange={(e) => setScenarioSliders(s => ({ ...s, patientLoad: parseInt(e.target.value) }))}
+                    className="w-full"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500">Risk Threshold: {scenarioSliders.riskThreshold}%</label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={scenarioSliders.riskThreshold}
+                    onChange={(e) => setScenarioSliders(s => ({ ...s, riskThreshold: parseInt(e.target.value) }))}
+                    className="w-full"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Charts Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {/* Appointments by Hour */}
+              <div className="p-3 border rounded-lg dark:border-gray-600">
+                <h4 className="text-sm font-medium mb-2">Appointments by Hour</h4>
+                <div className="h-32">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={analyticsData.appointmentsByHour}>
+                      <XAxis dataKey="hour" tick={{ fontSize: 9 }} />
+                      <YAxis tick={{ fontSize: 9 }} />
+                      <Tooltip />
+                      <Bar dataKey="appointments" fill="#3b82f6" />
+                      <Bar dataKey="completed" fill="#22c55e" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Risk Distribution */}
+              <div className="p-3 border rounded-lg dark:border-gray-600">
+                <h4 className="text-sm font-medium mb-2">Risk Distribution</h4>
+                <div className="h-32">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={analyticsData.riskDistribution}
+                        dataKey="value"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={25}
+                        outerRadius={50}
+                      >
+                        {analyticsData.riskDistribution.map((entry, index) => (
+                          <Cell key={index} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                      <Legend wrapperStyle={{ fontSize: '10px' }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Weekly Trend */}
+              <div className="p-3 border rounded-lg dark:border-gray-600">
+                <h4 className="text-sm font-medium mb-2">Weekly Trend</h4>
+                <div className="h-32">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={analyticsData.weeklyTrend}>
+                      <XAxis dataKey="day" tick={{ fontSize: 9 }} />
+                      <YAxis tick={{ fontSize: 9 }} />
+                      <Tooltip />
+                      <Area type="monotone" dataKey="patients" stackId="1" fill="#3b82f6" stroke="#3b82f6" />
+                      <Area type="monotone" dataKey="consultations" stackId="2" fill="#22c55e" stroke="#22c55e" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+
+            {/* Condition Heatmap */}
+            <div className="p-3 border rounded-lg dark:border-gray-600">
+              <h4 className="text-sm font-medium mb-2">Condition Risk Heatmap</h4>
+              <div className="h-40">
+                <ResponsiveContainer width="100%" height="100%">
+                  <RadarChart data={analyticsData.conditionBreakdown}>
+                    <PolarGrid />
+                    <PolarAngleAxis dataKey="condition" tick={{ fontSize: 10 }} />
+                    <PolarRadiusAxis tick={{ fontSize: 9 }} />
+                    <Radar name="Risk" dataKey="risk" stroke="#ef4444" fill="#ef4444" fillOpacity={0.3} />
+                    <Radar name="Count" dataKey="count" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.3} />
+                    <Legend wrapperStyle={{ fontSize: '10px' }} />
+                  </RadarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+        );
+
+      case 'ai':
+        return (
+          <div className="space-y-4">
+            {/* AI Predictions */}
+            <div className="p-3 bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-900/20 dark:to-purple-900/20 rounded-lg">
+              <div className="flex items-center gap-2 text-sm font-medium text-violet-700 dark:text-violet-300 mb-3">
+                <FaBrain /> Predictive Analytics
+              </div>
+              <div className="space-y-2">
+                {patients.filter(p => p.predictedDeterioration > 60).slice(0, 3).map(p => (
+                  <div key={p.id} className="flex items-center justify-between p-2 bg-white dark:bg-gray-800 rounded border border-violet-200 dark:border-violet-700">
+                    <div className="flex items-center gap-2">
+                      <FaExclamationTriangle className={p.predictedDeterioration > 80 ? 'text-red-500' : 'text-orange-500'} />
+                      <span className="font-medium">{p.name}</span>
+                    </div>
+                    <div className="text-sm">
+                      <span className="text-gray-500">Deterioration Risk:</span>
+                      <span className={`ml-1 font-bold ${p.predictedDeterioration > 80 ? 'text-red-600' : 'text-orange-600'}`}>
+                        {p.predictedDeterioration}%
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => setSelectedPatient(p)}
+                      className="px-2 py-1 text-xs bg-violet-100 dark:bg-violet-900 text-violet-600 dark:text-violet-300 rounded"
+                    >
+                      View
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Smart Suggestions */}
+            <div className="p-3 border rounded-lg dark:border-gray-600">
+              <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+                <FaRobot /> Smart Suggestions
+              </h4>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded text-sm">
+                  <FaCheckCircle className="text-blue-500" />
+                  <span>Schedule follow-up for 3 post-op patients this week</span>
+                </div>
+                <div className="flex items-center gap-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded text-sm">
+                  <FaExclamationCircle className="text-yellow-500" />
+                  <span>5 patients have overdue lab work</span>
+                </div>
+                <div className="flex items-center gap-2 p-2 bg-green-50 dark:bg-green-900/20 rounded text-sm">
+                  <FaInfoCircle className="text-green-500" />
+                  <span>Consider medication review for chronic patients</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Missing Data Alerts */}
+            <div className="p-3 border rounded-lg dark:border-gray-600">
+              <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+                <FaExclamationTriangle className="text-orange-500" /> Missing Data Alerts
+              </h4>
+              <div className="space-y-1">
+                {patients.filter(p => p.missingData.length > 0).slice(0, 4).map(p => (
+                  <div key={p.id} className="flex items-center justify-between text-sm p-1">
+                    <span>{p.name}</span>
+                    <span className="text-orange-500">{p.missingData.join(', ')}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+
+      case 'team':
+        return (
+          <div className="space-y-3">
+            {/* Team Status */}
+            <div className="space-y-2">
+              {teamMembers.map(member => (
+                <div key={member.id} className="flex items-center gap-2 p-2 border rounded-lg dark:border-gray-600">
+                  <img src={member.avatar} alt="" className="w-8 h-8 rounded-full" />
+                  <div className="flex-1">
+                    <div className="text-sm font-medium">{member.name}</div>
+                    <div className="text-xs text-gray-500">{member.role}</div>
+                  </div>
+                  <div className={`w-2 h-2 rounded-full ${member.status === 'available' ? 'bg-green-500' :
+                    member.status === 'busy' ? 'bg-yellow-500' : 'bg-gray-400'
+                    }`} />
+                  {member.currentPatient && (
+                    <span className="text-xs text-gray-500">{member.currentPatient}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Activity Log */}
+            <div>
+              <h4 className="text-sm font-medium mb-2">Recent Activity</h4>
+              <div className="space-y-1 max-h-32 overflow-y-auto">
+                {activityLogs.slice(0, 5).map(log => (
+                  <div key={log.id} className="text-xs text-gray-500 p-1 border-l-2 border-blue-300 pl-2">
+                    <span className="font-medium text-gray-700 dark:text-gray-300">{log.user}</span> {log.action}{' '}
+                    <span className="text-blue-600">{log.target}</span>
+                    <span className="ml-2">{log.timestamp.toLocaleTimeString()}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Leaderboard */}
+            <div>
+              <h4 className="text-sm font-medium mb-2 flex items-center gap-1">
+                <FaTrophy className="text-yellow-500" /> Today's Leaderboard
+              </h4>
+              {leaderboard.map((doc, i) => (
+                <div key={i} className="flex items-center gap-2 text-sm p-1">
+                  <span className={`font-bold ${i === 0 ? 'text-yellow-500' : i === 1 ? 'text-gray-400' : 'text-orange-400'}`}>
+                    #{i + 1}
+                  </span>
+                  <span className="flex-1">{doc.name}</span>
+                  <span className="text-gray-500">{doc.score} pts</span>
                 </div>
               ))}
             </div>
           </div>
+        );
 
-        </section>
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div className={`min-h-screen bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors`}>
+      {/* Header */}
+      <header className="bg-white dark:bg-gray-800 shadow-sm border-b dark:border-gray-700 sticky top-0 z-40">
+        <div className="max-w-[1920px] mx-auto px-4 py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
+                  <FaStethoscope className="text-white text-xl" />
+                </div>
+                <div>
+                  <h1 className="text-xl font-bold">MediCore Pro</h1>
+                  <p className="text-xs text-gray-500">Doctor Dashboard</p>
+                </div>
+              </div>
+
+              {/* Quick Stats */}
+              <div className="hidden lg:flex items-center gap-4 ml-8">
+                <div className="flex items-center gap-2 px-3 py-1 bg-red-100 dark:bg-red-900/30 rounded-full">
+                  <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                  <span className="text-sm font-medium text-red-700 dark:text-red-300">
+                    {criticalPatients.length} Critical
+                  </span>
+                </div>
+                <div className="text-sm text-gray-500">
+                  <span className="font-medium text-gray-700 dark:text-gray-300">{patients.length}</span> Patients
+                </div>
+                <div className="text-sm text-gray-500">
+                  <span className="font-medium text-gray-700 dark:text-gray-300">
+                    {appointments.filter(a => a.status === 'Pending' || a.status === 'Confirmed').length}
+                  </span> Appointments
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {/* Command Palette Trigger */}
+              <button
+                onClick={() => setShowCommandPalette(true)}
+                className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-gray-100 dark:bg-gray-700 rounded-lg text-sm text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-600"
+              >
+                <FaKeyboard /> <span className="text-xs">⌘K</span>
+              </button>
+
+              {/* Theme Toggles */}
+              <button
+                onClick={() => setDark(d => !d)}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+              >
+                {dark ? <FaSun className="text-yellow-400" /> : <FaMoon />}
+              </button>
+
+              <button
+                onClick={() => setHighContrast(h => !h)}
+                className={`p-2 rounded-lg ${highContrast ? 'bg-blue-100 text-blue-600' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+              >
+                <FaEye />
+              </button>
+
+              {/* Notifications */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowNotifications(!showNotifications)}
+                  className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg relative"
+                >
+                  <FaBell />
+                  {unreadNotifications.length > 0 && (
+                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                      {unreadNotifications.length}
+                    </span>
+                  )}
+                </button>
+
+                {/* Notifications Dropdown */}
+                <AnimatePresence>
+                  {showNotifications && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 10 }}
+                      className="absolute right-0 top-full mt-2 w-96 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border dark:border-gray-700 z-50 max-h-[500px] overflow-hidden"
+                    >
+                      <div className="p-3 border-b dark:border-gray-700 flex items-center justify-between">
+                        <h3 className="font-semibold">Notifications</h3>
+                        <button
+                          onClick={() => setNotifications(prev => prev.map(n => ({ ...n, read: true })))}
+                          className="text-xs text-blue-600 hover:underline"
+                        >
+                          Mark all read
+                        </button>
+                      </div>
+                      <div className="max-h-80 overflow-y-auto">
+                        {notifications.length === 0 ? (
+                          <div className="p-8 text-center text-gray-500">No notifications</div>
+                        ) : (
+                          notifications.slice(0, 10).map(n => (
+                            <motion.div
+                              key={n.id}
+                              layout
+                              className={`p-3 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 ${!n.read ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                                }`}
+                            >
+                              <div className="flex items-start gap-2">
+                                {n.type === 'critical' && <FaExclamationTriangle className="text-red-500 mt-0.5" />}
+                                {n.type === 'warning' && <FaExclamationCircle className="text-yellow-500 mt-0.5" />}
+                                {n.type === 'info' && <FaInfoCircle className="text-blue-500 mt-0.5" />}
+                                {n.type === 'success' && <FaCheckCircle className="text-green-500 mt-0.5" />}
+                                <div className="flex-1">
+                                  <div className="font-medium text-sm">{n.title}</div>
+                                  <div className="text-xs text-gray-500">{n.message}</div>
+                                  <div className="text-xs text-gray-400 mt-1">{n.timestamp.toLocaleTimeString()}</div>
+                                  {n.actions && (
+                                    <div className="flex gap-1 mt-2">
+                                      {n.actions.map((action, i) => (
+                                        <button
+                                          key={i}
+                                          onClick={() => {
+                                            if (action.action === 'ack') acknowledgeNotification(n.id);
+                                            if (action.action === 'view' && n.patientId) {
+                                              setSelectedPatient(patients.find(p => p.id === n.patientId) || null);
+                                              setShowNotifications(false);
+                                            }
+                                          }}
+                                          className="text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-600 rounded hover:bg-gray-200"
+                                        >
+                                          {action.label}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                  <button
+                                    onClick={() => snoozeNotification(n.id, 30)}
+                                    className="text-xs text-gray-400 hover:text-gray-600"
+                                  >
+                                    <FaClock />
+                                  </button>
+                                  <button
+                                    onClick={() => dismissNotification(n.id)}
+                                    className="text-xs text-gray-400 hover:text-red-600"
+                                  >
+                                    <FaTimes />
+                                  </button>
+                                </div>
+                              </div>
+                            </motion.div>
+                          ))
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* Export Button */}
+              <button
+                onClick={exportData}
+                className="hidden md:flex items-center gap-1 px-3 py-1.5 bg-gray-100 dark:bg-gray-700 rounded-lg text-sm hover:bg-gray-200 dark:hover:bg-gray-600"
+              >
+                <FaDownload /> Export
+              </button>
+
+              {/* Refresh */}
+              <button
+                onClick={() => window.location.reload()}
+                className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                <FaSync />
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="max-w-[1920px] mx-auto p-4">
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={widgets.map(w => w.id)} strategy={rectSortingStrategy}>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {widgets.map(widget => (
+                <SortableWidget
+                  key={widget.id}
+                  widget={widget}
+                  onToggleCollapse={toggleWidgetCollapse}
+                  onResize={resizeWidget}
+                >
+                  {renderWidgetContent(widget)}
+                </SortableWidget>
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
+
+        {/* Quick Actions Toolbar */}
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-white dark:bg-gray-800 rounded-full shadow-2xl border dark:border-gray-700 px-6 py-3 flex items-center gap-4 z-40">
+          <button className="flex flex-col items-center gap-1 hover:text-blue-600 transition-colors">
+            <FaFlask className="text-lg" />
+            <span className="text-xs">Labs</span>
+          </button>
+          <button className="flex flex-col items-center gap-1 hover:text-blue-600 transition-colors">
+            <FaPills className="text-lg" />
+            <span className="text-xs">Rx</span>
+          </button>
+          <button className="flex flex-col items-center gap-1 hover:text-blue-600 transition-colors">
+            <FaCalendarAlt className="text-lg" />
+            <span className="text-xs">Schedule</span>
+          </button>
+          <button className="flex flex-col items-center gap-1 hover:text-blue-600 transition-colors">
+            <FaUserInjured className="text-lg" />
+            <span className="text-xs">Patients</span>
+          </button>
+          <button className="flex flex-col items-center gap-1 hover:text-blue-600 transition-colors">
+            <FaCreditCard className="text-lg" />
+            <span className="text-xs">Billing</span>
+          </button>
+          <div className="w-px h-8 bg-gray-200 dark:bg-gray-600" />
+          <button
+            onClick={() => setShowCommandPalette(true)}
+            className="flex flex-col items-center gap-1 hover:text-blue-600 transition-colors"
+          >
+            <FaKeyboard className="text-lg" />
+            <span className="text-xs">⌘K</span>
+          </button>
+        </div>
       </main>
 
-      {/* Right column / widgets */}
-      <aside className="max-w-7xl mx-auto mt-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="col-span-2 bg-white dark:bg-gray-800 rounded-lg p-4 shadow">
-            <h3 className="font-semibold">Analytics</h3>
-            <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div className="p-3 border rounded">
-                <div className="text-xs text-gray-500">Appointments by day</div>
-                <div className="h-32 mt-2"><ResponsiveContainer width="100%" height="100%"><BarChart data={appointmentsByDay}><XAxis dataKey="day"/><YAxis/><Tooltip/><Bar dataKey="appointments" fill="#60a5fa"/></BarChart></ResponsiveContainer></div>
+      {/* Command Palette */}
+      <AnimatePresence>
+        {showCommandPalette && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-start justify-center pt-[20vh]"
+            onClick={() => setShowCommandPalette(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: -20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: -20 }}
+              className="w-full max-w-lg bg-white dark:bg-gray-800 rounded-2xl shadow-2xl overflow-hidden"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3 px-4 py-3 border-b dark:border-gray-700">
+                <FaSearch className="text-gray-400" />
+                <input
+                  ref={commandInputRef}
+                  type="text"
+                  value={commandSearch}
+                  onChange={e => setCommandSearch(e.target.value)}
+                  placeholder="Type a command..."
+                  className="flex-1 bg-transparent outline-none text-lg"
+                />
+                <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">ESC</kbd>
               </div>
-              <div className="p-3 border rounded">
-                <div className="text-xs text-gray-500">Patient mix</div>
-                <div className="h-32 mt-2"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={[{name:'High', value:patientRiskBreakdown.high},{name:'Medium', value:patientRiskBreakdown.medium},{name:'Low', value:patientRiskBreakdown.low}]} dataKey="value" nameKey="name" innerRadius={30} outerRadius={50}>{[0,1,2].map((i)=>(<Cell key={i} fill={COLORS[i]} />))}</Pie></PieChart></ResponsiveContainer></div>
+              <div className="max-h-80 overflow-y-auto">
+                {filteredCommands.map(cmd => (
+                  <button
+                    key={cmd.id}
+                    onClick={() => {
+                      cmd.action();
+                      setShowCommandPalette(false);
+                      setCommandSearch('');
+                    }}
+                    className="w-full text-left px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3"
+                  >
+                    <FaChevronDown className="text-gray-400" />
+                    <span>{cmd.label}</span>
+                  </button>
+                ))}
               </div>
-            </div>
-            <div className="mt-3 text-xs text-gray-500">Note: Analytics are mock. Wire to real analytics API for production metrics.</div>
-          </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-
-        </div>
-      </aside>
-
-      {/* Patient detail modal */}
-      <div aria-live="polite">
+      {/* Patient Detail Modal */}
+      <AnimatePresence>
         {selectedPatient && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-3xl p-4 overflow-auto">
-              <div className="flex justify-between items-center mb-3">
-                <h2 className="text-xl font-semibold">{selectedPatient.name}</h2>
-                <div className="flex gap-2">
-                  <button onClick={()=> exportPatientTimeline(selectedPatient)} className="px-2 py-1 border rounded text-sm">Export</button>
-                  <button onClick={closePatient} className="px-2 py-1 border rounded">Close</button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div>
-                  <img src={selectedPatient.photo} alt="avatar" className="w-32 h-32 rounded" />
-                  <div className="mt-2 text-sm">Age: {selectedPatient.age}</div>
-                  <div className="text-sm">Gender: {selectedPatient.gender}</div>
-                  <div className="text-sm">Condition: {selectedPatient.condition}</div>
-                </div>
-                <div className="md:col-span-2">
-                  <h4 className="font-semibold">Timeline</h4>
-                  <div className="mt-2 space-y-2">
-                    {selectedPatient.vitalsHistory && selectedPatient.vitalsHistory.length > 0 ? (
-                      selectedPatient.vitalsHistory.map((h,i)=> (
-                        <div key={i} className="p-2 border rounded">
-                          <div className="text-xs text-gray-500">{h.date}</div>
-                          <div className="text-sm">BP: {h.bp} • HR: {h.hr} • Sugar: {h.sugar}</div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="p-2 border rounded text-gray-500 text-sm">
-                        No vitals history available
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setSelectedPatient(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              className="w-full max-w-4xl bg-white dark:bg-gray-800 rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto"
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Patient Header */}
+              <div className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white p-6">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-4">
+                    <img src={selectedPatient.photo} alt="" className="w-20 h-20 rounded-full border-4 border-white/30" />
+                    <div>
+                      <h2 className="text-2xl font-bold">{selectedPatient.name}</h2>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="px-2 py-0.5 bg-white/20 rounded-full text-sm">
+                          {selectedPatient.age}y • {selectedPatient.gender}
+                        </span>
+                        <span className="px-2 py-0.5 bg-white/20 rounded-full text-sm">
+                          {selectedPatient.condition}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded-full text-sm ${selectedPatient.priority === 'Critical' ? 'bg-red-500' :
+                          selectedPatient.priority === 'High' ? 'bg-orange-500' :
+                            selectedPatient.priority === 'Medium' ? 'bg-yellow-500' : 'bg-green-500'
+                          }`}>
+                          {selectedPatient.priority} Risk
+                        </span>
                       </div>
-                    )}
-                  </div>
-
-                  <div className="mt-3">
-                    <h4 className="font-semibold">Notes & Actions</h4>
-                    <textarea placeholder="Write a clinical note..." className="w-full p-2 border rounded mt-2" rows={4}></textarea>
-                    <div className="mt-2 flex gap-2">
-                      <button onClick={() => savePatientNote(selectedPatient)} className="px-3 py-1 bg-blue-600 text-white rounded">Save Note</button>
-                      <button onClick={() => startConsultation(selectedPatient)} className="px-3 py-1 bg-emerald-600 text-white rounded">Start Consultation</button>
+                      <div className="flex gap-1 mt-2">
+                        {selectedPatient.tags.map((tag, i) => (
+                          <span key={i} className="text-xs px-2 py-0.5 bg-white/10 rounded">{tag}</span>
+                        ))}
+                      </div>
                     </div>
                   </div>
+                  <button
+                    onClick={() => setSelectedPatient(null)}
+                    className="p-2 hover:bg-white/20 rounded-lg"
+                  >
+                    <FaTimes />
+                  </button>
+                </div>
+
+                {/* Quick Stats */}
+                <div className="grid grid-cols-4 gap-4 mt-6">
+                  <div className="bg-white/10 rounded-lg p-3 text-center">
+                    <div className="text-2xl font-bold">{selectedPatient.riskScore}%</div>
+                    <div className="text-xs opacity-75">Risk Score</div>
+                  </div>
+                  <div className="bg-white/10 rounded-lg p-3 text-center">
+                    <div className="text-2xl font-bold">{selectedPatient.adherenceScore}%</div>
+                    <div className="text-xs opacity-75">Adherence</div>
+                  </div>
+                  <div className="bg-white/10 rounded-lg p-3 text-center">
+                    <div className="text-2xl font-bold">{selectedPatient.predictedDeterioration}%</div>
+                    <div className="text-xs opacity-75">Deterioration Risk</div>
+                  </div>
+                  <div className="bg-white/10 rounded-lg p-3 text-center">
+                    <div className="text-sm font-medium">{selectedPatient.nextAppointment}</div>
+                    <div className="text-xs opacity-75">Next Visit</div>
+                  </div>
                 </div>
               </div>
 
-            </div>
-          </div>
+              {/* Patient Content */}
+              <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Vitals History */}
+                <div>
+                  <h3 className="font-semibold mb-3 flex items-center gap-2">
+                    <FaChartLine /> Vitals History
+                  </h3>
+                  <div className="h-48 bg-gray-50 dark:bg-gray-900 rounded-lg p-2">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <ComposedChart data={selectedPatient.vitalsHistory.slice(0, 14).reverse()}>
+                        <XAxis dataKey="date" tick={{ fontSize: 9 }} />
+                        <YAxis tick={{ fontSize: 9 }} />
+                        <Tooltip />
+                        <Line type="monotone" dataKey={(d) => parseInt(d.bp?.split('/')[0] || '0')} name="Systolic" stroke="#ef4444" strokeWidth={2} />
+                        <Line type="monotone" dataKey="hr" name="Heart Rate" stroke="#3b82f6" strokeWidth={2} />
+                        <Area type="monotone" dataKey="o2" name="O2" fill="#22c55e20" stroke="#22c55e" />
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  {/* Latest Vitals */}
+                  <div className="grid grid-cols-2 gap-2 mt-3">
+                    {selectedPatient.vitalsHistory.slice(0, 4).map((v, i) => (
+                      <div key={i} className="p-2 bg-gray-50 dark:bg-gray-700 rounded text-sm">
+                        <div className="text-xs text-gray-500 mb-1">{v.date}</div>
+                        <div className="grid grid-cols-2 gap-1 text-xs">
+                          <span>BP: {v.bp}</span>
+                          <span>HR: {v.hr}</span>
+                          <span>O₂: {v.o2}%</span>
+                          <span>Temp: {v.temp}°</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Actions & Notes */}
+                <div className="space-y-4">
+                  {/* Quick Actions */}
+                  <div>
+                    <h3 className="font-semibold mb-3">Quick Actions</h3>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => startVideoCall(selectedPatient)}
+                        className="flex items-center justify-center gap-2 p-3 bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 rounded-lg hover:bg-blue-200"
+                      >
+                        <FaVideo /> Start Video Call
+                      </button>
+                      <button className="flex items-center justify-center gap-2 p-3 bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-300 rounded-lg hover:bg-green-200">
+                        <FaPhoneAlt /> Phone Call
+                      </button>
+                      <button className="flex items-center justify-center gap-2 p-3 bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-300 rounded-lg hover:bg-purple-200">
+                        <FaPills /> Prescribe
+                      </button>
+                      <button className="flex items-center justify-center gap-2 p-3 bg-orange-100 dark:bg-orange-900 text-orange-600 dark:text-orange-300 rounded-lg hover:bg-orange-200">
+                        <FaFlask /> Order Labs
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Clinical Notes */}
+                  <div>
+                    <h3 className="font-semibold mb-2">Clinical Notes</h3>
+                    <textarea
+                      placeholder="Add clinical notes..."
+                      className="w-full p-3 border rounded-lg dark:bg-gray-700 dark:border-gray-600 resize-none"
+                      rows={4}
+                    />
+                    <div className="flex gap-2 mt-2">
+                      <button className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                        <FaSave className="inline mr-2" /> Save Note
+                      </button>
+                      <button className="px-4 py-2 border rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+                        <FaMicrophone />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* AI Suggestions */}
+                  <div className="p-3 bg-violet-50 dark:bg-violet-900/20 rounded-lg">
+                    <div className="flex items-center gap-2 text-sm font-medium text-violet-700 dark:text-violet-300 mb-2">
+                      <FaBrain /> AI Suggestions
+                    </div>
+                    <div className="space-y-1 text-sm">
+                      <div className="flex items-center gap-2">
+                        <FaCheckCircle className="text-green-500" />
+                        <span>Consider adjusting BP medication based on trends</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <FaExclamationCircle className="text-yellow-500" />
+                        <span>Schedule HbA1c test (last: 3 months ago)</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Missing Data */}
+                  {selectedPatient.missingData.length > 0 && (
+                    <div className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
+                      <div className="flex items-center gap-2 text-sm font-medium text-orange-700 dark:text-orange-300 mb-2">
+                        <FaExclamationTriangle /> Missing Data
+                      </div>
+                      <div className="flex gap-2">
+                        {selectedPatient.missingData.map((item, i) => (
+                          <span key={i} className="px-2 py-1 bg-orange-100 dark:bg-orange-800 rounded text-sm">
+                            {item}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
         )}
-      </div>
+      </AnimatePresence>
 
-      <footer className="max-w-7xl mx-auto mt-6 text-xs text-gray-500">© Medicore — Doctor Dashboard (demo). To enable production features, wire EHR APIs: /api/patients, /api/vitals, /api/appointments, /api/prescriptions</footer>
-
-      {/* Added buttons row above footer */}
-      <div className="max-w-7xl mx-auto mt-6 mb-6 flex justify-center gap-4">
-        <Link to="/doctor/lab-results" className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition">
-          <FaFlask /> Lab Results
-        </Link>
-        {/* <Link to="/doctor/prescription" className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition">
-          <FaFilePrescription /> Prescriptions
-        </Link> */}
-        <Link to="/doctor/patients" className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 transition">
-          <FaUserInjured /> Patients
-        </Link>
-        <Link to="/doctor/schedule" className="flex items-center gap-2 px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700 transition">
-          <FaCalendarCheck /> Schedule
-        </Link>
-        <Link to="/doctor/billing" className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition">
-          <FaCreditCard /> Billing
-        </Link>
-      </div>
+      {/* Footer */}
+      <footer className="max-w-[1920px] mx-auto px-4 py-6 mt-8 text-center text-sm text-gray-500">
+        <p>© 2024 MediCore Pro — Advanced Doctor Dashboard</p>
+        <p className="text-xs mt-1">Real-time vitals • AI-powered insights • Predictive analytics</p>
+      </footer>
     </div>
   );
 }
+
+export default App;

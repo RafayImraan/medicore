@@ -4,7 +4,7 @@ import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 // Components + Pages
 import Navbar from "./components/Navbar";
 import Hero from "./components/Hero";
-import Services from "./components/services";
+import Services from "./components/Services";
 import Departments from "./components/Departments";
 import Emergency from "./components/Emergency";
 import Doctors from "./components/Doctors";

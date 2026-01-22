@@ -4,7 +4,17 @@ import { motion } from "framer-motion";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, CartesianGrid, PieChart, Pie, Cell } from "recharts";
 import { Sun, Moon, Bell, Download, Wifi, AlertCircle, Users, Map, RefreshCw, Database, Shield, Activity } from "lucide-react";
 import { io } from "socket.io-client";
-import { adminAPI, fallbackData, fetchWithFallback } from "../../services/api";
+import {
+  useAdminStats,
+  useSystemHealth,
+  useActivityLogs,
+  useSystemNotifications,
+  useIncidents,
+  useTasks,
+  useCreateIncident,
+  useCreateTask,
+  useUpdateTask
+} from "../../hooks/apiHooks";
 
 /*
   AdminDashboardUltimate.jsx
@@ -118,18 +128,24 @@ export default function AdminDashboardUltimate() {
   // Task manager
   const [tasks, setTasks] = useState(() => Array.from({ length: 4 }).map(() => ({ id: faker.string.uuid(), title: faker.hacker.phrase(), assignee: faker.person.fullName(), status: faker.helpers.arrayElement(['todo', 'in-progress', 'done']) })));
 
-  // Real data integration states
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [realStats, setRealStats] = useState(null);
-  const [realSystemHealth, setRealSystemHealth] = useState(null);
-  const [realActivityLogs, setRealActivityLogs] = useState([]);
-  const [realNotifications, setRealNotifications] = useState([]);
+  // Use API hooks
+  const { data: realStats, loading: statsLoading, error: statsError, refetch: refetchStats } = useAdminStats();
+  const { data: realSystemHealth, loading: healthLoading, error: healthError, refetch: refetchHealth } = useSystemHealth();
+  const { data: realActivityLogs, loading: activityLoading, error: activityError, refetch: refetchActivity } = useActivityLogs();
+  const { data: realNotifications, loading: notificationsLoading, error: notificationsError, refetch: refetchNotifications } = useSystemNotifications();
+  const { data: realIncidents, loading: incidentsLoading, error: incidentsError, refetch: refetchIncidents } = useIncidents();
+  const { data: realTasks, loading: tasksLoading, error: tasksError, refetch: refetchTasks } = useTasks();
+  const { createIncident, loading: createIncidentLoading, error: createIncidentError } = useCreateIncident();
+  const { createTask, loading: createTaskLoading, error: createTaskError } = useCreateTask();
+  const { updateTask, loading: updateTaskLoading, error: updateTaskError } = useUpdateTask();
+
+  // Additional state for real data
   const [realSecurityAlerts, setRealSecurityAlerts] = useState([]);
-  const [realIncidents, setRealIncidents] = useState([]);
-  const [realTasks, setRealTasks] = useState([]);
   const [realReports, setRealReports] = useState([]);
+
   const [lastRefresh, setLastRefresh] = useState(new Date());
+  const loading = statsLoading || healthLoading || activityLoading || notificationsLoading || incidentsLoading || tasksLoading;
+  const error = statsError || healthError || activityError || notificationsError || incidentsError || tasksError;
 
   // Modal states
   const [showIncidentModal, setShowIncidentModal] = useState(false);
@@ -196,81 +212,7 @@ export default function AdminDashboardUltimate() {
     };
   }, []);
 
-  // Load real data on component mount
-  useEffect(() => {
-    const loadRealData = async () => {
-      try {
-        setLoading(true);
-        setError(null);
 
-        // Load real data with fallback to mock data (50/50 mix)
-        const [statsResult, healthResult, activityResult, notificationsResult, alertsResult, incidentsResult, tasksResult, reportsResult] = await Promise.allSettled([
-          fetchWithFallback(adminAPI.getDashboardStats, fallbackData.generateAdminStats),
-          fetchWithFallback(adminAPI.getSystemHealth, fallbackData.generateSystemHealth),
-          fetchWithFallback(() => adminAPI.getActivityLogs(1, 10), () => fallbackData.generateActivityLogs(10)),
-          fetchWithFallback(adminAPI.getNotifications, () => fallbackData.generateNotifications(8)),
-          fetchWithFallback(adminAPI.getSecurityAlerts, () => fallbackData.generateSecurityAlerts(5)),
-          fetchWithFallback(adminAPI.getIncidents, () => fallbackData.generateIncidents(5)),
-          fetchWithFallback(adminAPI.getTasks, () => fallbackData.generateTasks(5)),
-          fetchWithFallback(adminAPI.getReports, () => fallbackData.generateReports(5)),
-        ]);
-
-        // Process results
-        if (statsResult.status === 'fulfilled') {
-          setRealStats(statsResult.value.data);
-        }
-
-        if (healthResult.status === 'fulfilled') {
-          setRealSystemHealth(healthResult.value.data);
-        }
-
-        if (activityResult.status === 'fulfilled') {
-          setRealActivityLogs(activityResult.value.data);
-        }
-
-        if (notificationsResult.status === 'fulfilled') {
-          setRealNotifications(notificationsResult.value.data);
-        }
-
-        if (alertsResult.status === 'fulfilled') {
-          setRealSecurityAlerts(alertsResult.value.data);
-        }
-
-        if (incidentsResult.status === 'fulfilled') {
-          const incidentsData = Array.isArray(incidentsResult.value.data) ? incidentsResult.value.data : [];
-          setRealIncidents(incidentsData);
-          setIncidents(incidentsData);
-        }
-
-        if (tasksResult.status === 'fulfilled') {
-          const tasksData = Array.isArray(tasksResult.value.data) ? tasksResult.value.data : [];
-          setRealTasks(tasksData);
-          setTasks(tasksData);
-        }
-
-        if (reportsResult.status === 'fulfilled') {
-          setRealReports(reportsResult.value.data);
-        }
-
-        setLastRefresh(new Date());
-
-        // Add notification for data load
-        const loadNotification = {
-          id: faker.string.uuid(),
-          text: 'Dashboard data loaded successfully',
-          ts: new Date().toLocaleTimeString()
-        };
-        setNotifications(n => [loadNotification]);
-      } catch (err) {
-        console.error('Error loading real data:', err);
-        setError('Failed to load some data. Using fallback data.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadRealData();
-  }, []);
 
   // Realtime simulation: notifications + slight metric drift
   useEffect(() => {
@@ -319,49 +261,7 @@ export default function AdminDashboardUltimate() {
   // Print dashboard
   const handlePrint = () => window.print();
 
-  // Incident create
-  const createIncident = async (payload) => {
-    try {
-      const response = await adminAPI.createIncident(payload);
-      if (response.data) {
-        setIncidents(i => [response.data, ...(Array.isArray(i) ? i : [])]);
-        setRealIncidents(i => [response.data, ...(Array.isArray(i) ? i : [])]);
-      }
-    } catch (error) {
-      console.error('Error creating incident:', error);
-      // Fallback to local state
-      setIncidents(i => [{ id: faker.string.uuid(), ...payload, createdAt: new Date().toLocaleString(), status: 'Open' }, ...(Array.isArray(i) ? i : [])]);
-    }
-  };
 
-  // Task actions
-  const addTask = async (title) => {
-    try {
-      const response = await adminAPI.createTask({ title, assignee: 'Unassigned', status: 'todo', createdBy: localStorage.getItem('userId') || 'admin' });
-      if (response.data) {
-        setTasks(t => [response.data, ...(Array.isArray(t) ? t : [])]);
-        setRealTasks(t => [response.data, ...(Array.isArray(t) ? t : [])]);
-      }
-    } catch (error) {
-      console.error('Error creating task:', error);
-      // Fallback to local state
-      setTasks(t => [{ id: faker.string.uuid(), title, assignee: 'Unassigned', status: 'todo', createdBy: localStorage.getItem('userId') || 'admin' }, ...(Array.isArray(t) ? t : [])]);
-    }
-  };
-
-  const updateTaskStatus = async (id, status) => {
-    try {
-      const response = await adminAPI.updateTask(id, { status });
-      if (response.data) {
-        setTasks(t => t.map(tsk => tsk.id === id ? response.data : tsk));
-        setRealTasks(t => t.map(tsk => tsk.id === id ? response.data : tsk));
-      }
-    } catch (error) {
-      console.error('Error updating task:', error);
-      // Fallback to local state
-      setTasks(t => t.map(tsk => tsk.id === id ? { ...tsk, status } : tsk));
-    }
-  };
 
   // Hybrid data functions
   const getHybridKPIs = () => {
@@ -390,14 +290,14 @@ export default function AdminDashboardUltimate() {
   };
 
   const getHybridActivityLogs = () => {
-    if (realActivityLogs.length > 0) {
+    if (realActivityLogs && realActivityLogs.length > 0) {
       return realActivityLogs.slice(0, 8);
     }
     return auditLogs;
   };
 
   const getHybridNotifications = () => {
-    if (realNotifications.length > 0) {
+    if (realNotifications && realNotifications.length > 0) {
       return realNotifications.slice(0, 8);
     }
     return notifications;

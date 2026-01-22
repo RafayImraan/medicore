@@ -8,6 +8,12 @@ function fuzzyIncludes(str, query) {
   return str.toLowerCase().includes(query.toLowerCase());
 }
 
+// Simple email validation
+function isValidEmail(email) {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email.trim());
+}
+
 /*
   BookAppointmentPro.jsx
   - Single-file, enterprise-grade appointment booking flow (mock + API-ready placeholders)
@@ -157,7 +163,19 @@ export default function BookAppointmentPro() {
   const chooseSlot = (slotIso) => { setSelectedSlot(slotIso); setStep(3); };
 
   const confirmBooking = async () => {
-    if (!selectedDoctor || !selectedSlot || !patient.name) { toast.error('Please complete required fields'); return; }
+    if (!selectedDoctor || !selectedSlot || !patient.name || !patient.email || !reason) { toast.error('Please complete required fields'); return; }
+    if (!isValidEmail(patient.email)) {
+      toast.error('Please enter a valid email address');
+      return;
+    }
+    if (estimatedFee <= 0) {
+      toast.error('Invalid consultation fee');
+      return;
+    }
+    if (new Date(selectedSlot) <= new Date()) {
+      toast.error('Please select a future appointment time');
+      return;
+    }
     setLoading(true);
     try {
       // compose booking
@@ -180,8 +198,7 @@ export default function BookAppointmentPro() {
         const response = await fetch('/api/appointments', {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
+            'Content-Type': 'application/json'
           },
           body: JSON.stringify({
             doctor: {
@@ -396,7 +413,7 @@ export default function BookAppointmentPro() {
                   </label>
                   <label className="block">
                     <div className="text-xs text-gray-500">Email</div>
-                    <input value={patient.email} onChange={e=>setPatient(p=>({...p, email:e.target.value}))} className="w-full p-2 border rounded" />
+                    <input value={patient.email} onChange={e=>setPatient(p=>({...p, email:e.target.value}))} className="w-full p-2 border rounded" required />
                   </label>
                   <label className="block">
                     <div className="text-xs text-gray-500">Insurance Provider (optional)</div>
@@ -477,7 +494,7 @@ export default function BookAppointmentPro() {
             {bookings.map(b => (
               <div key={b.id} className="p-3 border rounded grid grid-cols-1 md:grid-cols-3 gap-2">
                 <div>
-                  <div className="font-medium">{b.doctor.name} — {b.doctor.specialization}</div>
+                  <div className="font-medium">{b.doctor?.name || 'Unknown Doctor'} — {b.doctor?.specialization || 'N/A'}</div>
                   <div className="text-xs text-gray-500">{new Date(b.slot).toLocaleString()}</div>
                 </div>
                 <div className="text-sm text-gray-500">Mode: {b.type} • Fee: Rs. {b.fee}</div>

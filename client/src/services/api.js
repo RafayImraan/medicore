@@ -1,6 +1,6 @@
 import { faker } from '@faker-js/faker';
 
-const API_BASE_URL = 'http://localhost:5000';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
 // Generic API request function
 export const apiRequest = async (endpoint, options = {}, token = null) => {

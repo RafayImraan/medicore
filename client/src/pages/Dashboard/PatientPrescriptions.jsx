@@ -1,56 +1,66 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import axios from 'axios';
 import { FileText, Calendar, User, Download, AlertCircle, CheckCircle, Clock } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const PatientPrescriptions = () => {
-  const { user } = useAuth();
+  const { user, token } = useAuth(); // get token from context
   const [prescriptions, setPrescriptions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const navigate = useNavigate();
+
+  // Axios instance with token
+  const api = useMemo(() => {
+    if (!token) return null;
+    return axios.create({
+      baseURL: '/api',
+      headers: { Authorization: `Bearer ${token}` }
+    });
+  }, [token]);
 
   useEffect(() => {
     const fetchPrescriptions = async () => {
-      if (!user || !user._id) return;
+      if (!user || !user._id || !api) return;
 
       try {
         setLoading(true);
-        const response = await axios.get(`/api/patients/${user._id}/prescriptions`);
+        const response = await api.get(`/patients/${user._id}/prescriptions`);
         setPrescriptions(response.data);
+        setError(null);
       } catch (err) {
         console.error('Failed to fetch prescriptions:', err);
-        setError('Failed to load prescriptions. Please try again later.');
+        if (err.response && err.response.status === 401) {
+          // Token invalid or expired, redirect to login
+          alert('Session expired. Please login again.');
+          navigate('/login');
+        } else {
+          setError('Failed to load prescriptions. Please try again later.');
+        }
       } finally {
         setLoading(false);
       }
     };
 
     fetchPrescriptions();
-  }, [user]);
+  }, [user, api, navigate]);
 
   const getStatusIcon = (status) => {
     switch (status) {
-      case 'Active':
-        return <CheckCircle className="w-5 h-5 text-green-500" />;
-      case 'Expired':
-        return <Clock className="w-5 h-5 text-red-500" />;
-      case 'Completed':
-        return <CheckCircle className="w-5 h-5 text-blue-500" />;
-      default:
-        return <AlertCircle className="w-5 h-5 text-gray-500" />;
+      case 'Active': return <CheckCircle className="w-5 h-5 text-green-500" />;
+      case 'Expired': return <Clock className="w-5 h-5 text-red-500" />;
+      case 'Completed': return <CheckCircle className="w-5 h-5 text-blue-500" />;
+      default: return <AlertCircle className="w-5 h-5 text-gray-500" />;
     }
   };
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'Active':
-        return 'bg-green-100 text-green-800';
-      case 'Expired':
-        return 'bg-red-100 text-red-800';
-      case 'Completed':
-        return 'bg-blue-100 text-blue-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
+      case 'Active': return 'bg-green-100 text-green-800';
+      case 'Expired': return 'bg-red-100 text-red-800';
+      case 'Completed': return 'bg-blue-100 text-blue-800';
+      default: return 'bg-gray-100 text-gray-800';
     }
   };
 
@@ -155,10 +165,7 @@ const PatientPrescriptions = () => {
                   <div className="ml-6">
                     <button
                       className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                      onClick={() => {
-                        // Mock download functionality
-                        alert('Download functionality would be implemented here');
-                      }}
+                      onClick={() => alert('Download functionality would be implemented here')}
                     >
                       <Download className="w-4 h-4" />
                       Download
