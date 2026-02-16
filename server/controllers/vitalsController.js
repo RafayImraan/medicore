@@ -9,15 +9,15 @@ const getVitalsLive = async (req, res) => {
 
     // Get recent vitals for patients assigned to this doctor
     const vitals = await Vitals.find()
-      .populate('patientId', 'name')
-      .populate('doctorId', 'name')
+      .populate({ path: 'patientId', populate: { path: 'userId', select: 'name' } })
+      .populate({ path: 'doctorId', populate: { path: 'userId', select: 'name' } })
       .sort({ recordedAt: -1 })
       .limit(20);
 
     // Format for dashboard display
     const formattedVitals = vitals.map(vital => ({
       id: vital._id,
-      patient: vital.patientId?.name || 'Unknown Patient',
+      patient: vital.patientId?.userId?.name || 'Unknown Patient',
       bp: `${vital.bloodPressure.systolic}/${vital.bloodPressure.diastolic}`,
       hr: vital.heartRate,
       sugar: vital.bloodSugar || 'N/A',

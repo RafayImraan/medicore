@@ -18,7 +18,6 @@ exports.healthCheck = async (req, res) => {
     // Determine overall health status
     const isHealthy = dbState === 1 && health.memory.usagePercent < 90;
 
-    // Construct response object explicitly to ensure proper JSON formatting
     const response = {
       status: health.status,
       timestamp: health.timestamp,
@@ -39,30 +38,7 @@ exports.healthCheck = async (req, res) => {
       overall: isHealthy ? 'healthy' : 'unhealthy'
     };
 
-    // Try a simple JSON response first to test
-    const simpleResponse = {
-      status: 'healthy',
-      timestamp: new Date().toISOString(),
-      uptime: '0h 0m',
-      memory: {
-        rss: 25,
-        heapTotal: 26,
-        heapUsed: 24,
-        usagePercent: 93
-      },
-      version: 'v24.4.1',
-      environment: 'development',
-      database: {
-        status: 'connected',
-        name: 'khaan',
-        host: 'localhost'
-      },
-      overall: 'healthy'
-    };
-
-    console.log('Simple health response:', simpleResponse); // Debug log
-    res.set('x-no-compression', '1');
-    res.status(200).json(simpleResponse);
+    res.status(200).json(response);
   } catch (error) {
     console.error('Health check error:', error);
     res.status(503).json({

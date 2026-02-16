@@ -1,40 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { faker } from '@faker-js/faker';
+import { apiRequest } from '../../services/api';
 
-const billingStatuses = ['Paid', 'Unpaid', 'Pending'];
-const services = ['MRI Scan', 'X-Ray', 'CT Scan', 'Blood Test', 'Consultation'];
-const departments = ['Radiology', 'Emergency', 'Cardiology', 'Outpatient'];
-
-const generateBills = () => {
-  return Array.from({ length: 100 }, () => {
-    const amount = faker.number.int({ min: 1000, max: 5000 });
-    const status = faker.helpers.arrayElement(billingStatuses);
-    const date = faker.date.recent({ days: 20 });
-
-    return {
-      id: faker.string.uuid().slice(0, 8),
-      patient: faker.person.fullName(),
-      service: faker.helpers.arrayElement(services),
-      department: faker.helpers.arrayElement(departments),
-      amount: amount,
-      tax: Math.round(amount * 0.05), // 5% tax
-      discount: faker.datatype.boolean() ? 500 : 0,
-      status,
-      paymentMethod: faker.helpers.arrayElement(['Cash', 'Card', 'Online']),
-      notes: faker.helpers.arrayElement([
-        'Bill generated from lab module.',
-        'Patient requested receipt copy.',
-        'Includes service charges.',
-        'Processed via cashier terminal.',
-        'Overdue alert active.',
-        'Bill flagged by finance team.',
-        'Linked to prescription module.',
-        'Manual discount applied.',
-      ]),
-      createdAt: date,
-    };
-  });
-};
+const billingStatuses = ['Paid', 'Pending', 'Cancelled', 'Partial'];
 
 const Billing = () => {
   const [bills, setBills] = useState([]);
@@ -43,10 +10,27 @@ const Billing = () => {
   const [patientFilter, setPatientFilter] = useState('All');
   const [sortOption, setSortOption] = useState('recent');
   const [dateRange, setDateRange] = useState({ from: '', to: '' });
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    setBills(generateBills());
-  }, []);
+    const fetchBills = async () => {
+      try {
+        setLoading(true);
+        const query = new URLSearchParams();
+        if (statusFilter !== 'All') query.set('status', statusFilter);
+        if (search) query.set('search', search);
+        if (dateRange.from) query.set('dateFrom', dateRange.from);
+        if (dateRange.to) query.set('dateTo', dateRange.to);
+        const res = await apiRequest(`/api/billing${query.toString() ? `?${query.toString()}` : ''}`);
+        setBills(res.items || []);
+      } catch (err) {
+        console.error('Failed to load bills:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchBills();
+  }, [statusFilter, search, dateRange.from, dateRange.to]);
 
   const uniquePatients = [...new Set(bills.map(b => b.patient))];
 
@@ -69,10 +53,10 @@ const Billing = () => {
     return new Date(b.createdAt) - new Date(a.createdAt); // recent
   });
 
-  const totalRevenue = bills.reduce((sum, bill) => bill.status === 'Paid' ? sum + bill.amount : sum, 0);
-  const unpaidTotal = bills.reduce((sum, bill) => bill.status === 'Unpaid' ? sum + bill.amount : sum, 0);
+  const totalRevenue = bills.reduce((sum, bill) => bill.status === 'Paid' ? sum + bill.totalAmount : sum, 0);
+  const unpaidTotal = bills.reduce((sum, bill) => bill.status === 'Pending' ? sum + bill.totalAmount : sum, 0);
   const topService = bills.reduce((acc, bill) => {
-    acc[bill.service] = (acc[bill.service] || 0) + bill.amount;
+    acc[bill.service] = (acc[bill.service] || 0) + bill.totalAmount;
     return acc;
   }, {});
   const topServiceName = Object.entries(topService).sort((a, b) => b[1] - a[1])[0]?.[0] || '—';
@@ -139,7 +123,7 @@ const Billing = () => {
           🧮 Total Revenue: Rs. {totalRevenue}
         </div>
         <div className="p-4 bg-red-100 rounded text-center font-semibold">
-          ❌ Unpaid Amount: Rs. {unpaidTotal}
+          ❌ Pending Amount: Rs. {unpaidTotal}
         </div>
         <div className="p-4 bg-blue-100 rounded text-center font-semibold">
           🩺 Top Service: {topServiceName}
@@ -176,7 +160,7 @@ const Billing = () => {
                 <td>Rs. {bill.tax}</td>
                 <td>{bill.discount > 0 ? `- Rs. ${bill.discount}` : '—'}</td>
                 <td className="font-semibold text-green-700">
-                  Rs. {bill.amount + bill.tax - bill.discount}
+                  Rs. {bill.totalAmount}
                 </td>
                 <td>
                   <span className={`px-2 py-1 text-xs rounded ${
@@ -197,11 +181,16 @@ const Billing = () => {
                     <button
                       key={status}
                       onClick={() =>
-                        setBills(prev =>
-                          prev.map(b =>
-                            b.id === bill.id ? { ...b, status } : b
-                          )
-                        )
+                        apiRequest(`/api/billing/${bill.id}/payment-status`, {
+                          method: 'PUT',
+                          body: JSON.stringify({ paymentStatus: status })
+                        }).then(() => {
+                          setBills(prev =>
+                            prev.map(b =>
+                              b.id === bill.id ? { ...b, status } : b
+                            )
+                          );
+                        })
                       }
                       className={`text-xs px-2 py-1 rounded ${
                         bill.status === status ? 'bg-gray-800 text-white' : 'bg-gray-200'
@@ -212,7 +201,9 @@ const Billing = () => {
                   ))}
                   <button
                     onClick={() =>
-                      setBills(prev => prev.filter(b => b.id !== bill.id))
+                      apiRequest(`/api/billing/${bill.id}`, {
+                        method: 'DELETE'
+                      }).then(() => setBills(prev => prev.filter(b => b.id !== bill.id)))
                     }
                     className="bg-red-200 text-red-800 text-xs px-2 py-1 rounded"
                   >
@@ -223,6 +214,7 @@ const Billing = () => {
             ))}
           </tbody>
         </table>
+        {loading && <div className="text-sm text-gray-500 mt-2">Loading bills...</div>}
       </div>
             {/* 📤 Export & Notifications UI */}
       <div className="mt-6 bg-gray-50 border-l-4 border-gray-300 p-4 text-xs rounded space-y-2">
@@ -250,7 +242,7 @@ const Billing = () => {
       {/* 🧩 Final Insights */}
       <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="bg-blue-50 p-3 rounded text-sm">
-          📊 <strong>Average Bill:</strong> Rs. {Math.floor(bills.reduce((sum, b) => sum + b.amount, 0) / bills.length)}
+          📊 <strong>Average Bill:</strong> Rs. {bills.length ? Math.floor(bills.reduce((sum, b) => sum + b.totalAmount, 0) / bills.length) : 0}
         </div>
         <div className="bg-green-50 p-3 rounded text-sm">
           🧍 <strong>Most Billed Patient:</strong>{' '}

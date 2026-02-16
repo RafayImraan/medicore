@@ -1,6 +1,6 @@
 import { apiRequest, fallbackData, fetchWithFallback } from './api';
 
-const mode = import.meta.env.VITE_DATA_MODE || 'fake'; // fake, hybrid, real
+const mode = import.meta.env.VITE_DATA_MODE || 'real'; // fake, hybrid, real
 
 // Helper to decide mode behavior
 const isFake = mode === 'fake';

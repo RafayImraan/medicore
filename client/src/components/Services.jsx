@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import { apiRequest } from "../services/api";
 import {
   CalendarDays,
   FlaskConical,
@@ -40,6 +42,23 @@ import {
   Phone,
   Video,
   Search,
+  RotateCcw,
+  TrendingUp,
+  Eye,
+  EyeOff,
+  SlidersHorizontal,
+  Target,
+  Trophy,
+  Activity,
+  Share2,
+  FileDown,
+  Undo2,
+  ChevronRight,
+  ChevronLeft,
+  Maximize2,
+  Minimize2,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import { motion, AnimatePresence, useScroll, useTransform, useInView } from "framer-motion";
 
@@ -310,7 +329,7 @@ const ServiceQuiz = ({ isOpen, onClose, onResult }) => {
       else if (newAnswers.includes("Home Visit")) category = "Home Care";
       else if (newAnswers.includes("Virtual/Online")) category = "Telemedicine";
       
-      onResult(category);
+      onResult({ category, answers: newAnswers });
       onClose();
       setStep(0);
       setAnswers([]);
@@ -378,7 +397,7 @@ const ServiceQuiz = ({ isOpen, onClose, onResult }) => {
 };
 
 // Pricing Calculator Component
-const PricingCalculator = ({ isOpen, onClose }) => {
+const PricingCalculator = ({ isOpen, onClose, onSubmit }) => {
   const [sessions, setSessions] = useState(1);
   const [planType, setPlanType] = useState("basic");
   const [includeHomeVisit, setIncludeHomeVisit] = useState(false);
@@ -498,7 +517,23 @@ const PricingCalculator = ({ isOpen, onClose }) => {
                 </div>
               </div>
 
-              <GlowButton className="w-full">Proceed to Payment</GlowButton>
+              <GlowButton
+                className="w-full"
+                onClick={() =>
+                  onSubmit?.({
+                    sessions,
+                    planType,
+                    includeHomeVisit,
+                    subtotal,
+                    discount,
+                    discountAmount,
+                    total,
+                    emi,
+                  })
+                }
+              >
+                Proceed to Payment
+              </GlowButton>
             </div>
           </motion.div>
         </motion.div>
@@ -864,15 +899,18 @@ const TrustSection = () => {
 };
 
 // Newsletter Section
-const NewsletterSection = () => {
+const NewsletterSection = ({ onSubscribe, onResource }) => {
   const [email, setEmail] = useState("");
   const [subscribed, setSubscribed] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (email) {
-      setSubscribed(true);
-      setEmail("");
+      const ok = await onSubscribe?.(email);
+      if (ok !== false) {
+        setSubscribed(true);
+        setEmail("");
+      }
     }
   };
 
@@ -913,11 +951,17 @@ const NewsletterSection = () => {
           )}
 
           <div className="flex justify-center gap-6 mt-6">
-            <button className="flex items-center gap-2 text-white/80 hover:text-white text-sm">
+            <button
+              className="flex items-center gap-2 text-white/80 hover:text-white text-sm"
+              onClick={() => onResource?.("FREE-GUIDE-PDF")}
+            >
               <Download className="w-4 h-4" />
               Free Guide PDF
             </button>
-            <button className="flex items-center gap-2 text-white/80 hover:text-white text-sm">
+            <button
+              className="flex items-center gap-2 text-white/80 hover:text-white text-sm"
+              onClick={() => onResource?.("HEALTH-CHECKLIST")}
+            >
               <FileText className="w-4 h-4" />
               Health Checklist
             </button>
@@ -1008,7 +1052,8 @@ const NotificationToast = ({ notification, onClose }) => {
     success: "bg-green-500",
     info: "bg-blue-500",
     warning: "bg-yellow-500",
-  }[notification.type];
+    error: "bg-red-500",
+  }[notification.type] || "bg-gray-700";
 
   return (
     <motion.div
@@ -1027,93 +1072,258 @@ const NotificationToast = ({ notification, onClose }) => {
 };
 
 // Compare Services Modal
-const CompareModal = ({ services, onClose }) => {
-  if (services.length < 2) return null;
+const CompareModal = ({ services, onClose, compareFeatures, setCompareFeatures, onBook }) => {
+  const [selectedFeatures, setSelectedFeatures] = useState(
+    Array.isArray(compareFeatures) && compareFeatures.length > 0
+      ? compareFeatures
+      : ['Price', 'Rating', 'Duration', 'Availability', 'Features', 'SLA']
+  );
+  const [isExporting, setIsExporting] = useState(false);
+
+  const allFeatures = [
+    'Price', 'Rating', 'Duration', 'Availability', 'Features', 'SLA',
+    'Stats', 'Category', 'Certifications', 'Timeline', 'Use Cases'
+  ];
+
+  const handleFeatureToggle = (feature) => {
+    setSelectedFeatures((prev) => {
+      const next = prev.includes(feature)
+        ? prev.filter((f) => f !== feature)
+        : [...prev, feature];
+      setCompareFeatures?.(next);
+      return next;
+    });
+  };
+
+  const exportToCSV = () => {
+    setIsExporting(true);
+    const csvData = [
+      ['Feature', ...services.map(s => s.title)],
+      ...selectedFeatures.map(feature => [
+        feature,
+        ...services.map(service => {
+          switch (feature) {
+            case 'Price': return `$${service.startingPrice}`;
+            case 'Rating': return service.rating;
+            case 'Duration': return service.duration;
+            case 'Availability': return service.available;
+            case 'Features': return service.features.join('; ');
+            case 'SLA': return service.sla;
+            case 'Stats': return service.stats;
+            case 'Category': return service.category;
+            case 'Certifications': return service.certifications.join('; ');
+            case 'Timeline': return service.timeline;
+            case 'Use Cases': return service.useCases.join('; ');
+            default: return '';
+          }
+        })
+      ])
+    ];
+
+    const csvContent = csvData.map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'service-comparison.csv';
+    a.click();
+    window.URL.revokeObjectURL(url);
+    setIsExporting(false);
+  };
+
+  const getHighlightClass = (values, index) => {
+    const uniqueValues = [...new Set(values)];
+    if (uniqueValues.length > 1) {
+      return values.filter(v => v === values[index]).length === 1 ? 'bg-yellow-100 dark:bg-yellow-900/30' : '';
+    }
+    return '';
+  };
 
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center px-4 py-8"
+      className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center px-4 py-8"
       onClick={onClose}
     >
       <motion.div
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
-        className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl"
+        className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-xl rounded-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden shadow-2xl border border-white/20"
         onClick={(e) => e.stopPropagation()}
+        style={{
+          background: 'linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.8) 100%)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)'
+        }}
       >
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-          <h3 className="text-xl font-bold dark:text-white">Compare Services</h3>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full">
-            <X className="w-5 h-5 dark:text-white" />
-          </button>
+        <div className="sticky top-0 z-10 p-6 border-b border-gray-200/50 dark:border-gray-700/50 bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm flex justify-between items-center">
+          <div>
+            <h3 className="text-2xl font-bold dark:text-white">Compare Services</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              Comparing {services.length} services • Select features to compare
+            </p>
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={exportToCSV}
+              disabled={isExporting}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition disabled:opacity-50"
+            >
+              <FileDown className="w-4 h-4" />
+              {isExporting ? 'Exporting...' : 'Export CSV'}
+            </button>
+            <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full">
+              <X className="w-5 h-5 dark:text-white" />
+            </button>
+          </div>
         </div>
-        <div className="overflow-auto p-6">
-          <table className="w-full">
-            <thead>
-              <tr>
-                <th className="text-left p-3 dark:text-white">Feature</th>
-                {services.map((s) => (
-                  <th key={s.id} className="text-left p-3 dark:text-white">{s.title}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              <tr className="border-t dark:border-gray-700">
-                <td className="p-3 text-gray-500 dark:text-gray-400">Price</td>
-                {services.map((s) => (
-                  <td key={s.id} className="p-3 dark:text-white font-semibold text-green-600">${s.startingPrice}</td>
-                ))}
-              </tr>
-              <tr className="border-t dark:border-gray-700">
-                <td className="p-3 text-gray-500 dark:text-gray-400">Rating</td>
-                {services.map((s) => (
-                  <td key={s.id} className="p-3 dark:text-white">
-                    <span className="flex items-center gap-1">
-                      <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-                      {s.rating}
-                    </span>
-                  </td>
-                ))}
-              </tr>
-              <tr className="border-t dark:border-gray-700">
-                <td className="p-3 text-gray-500 dark:text-gray-400">Duration</td>
-                {services.map((s) => (
-                  <td key={s.id} className="p-3 dark:text-white">{s.duration}</td>
-                ))}
-              </tr>
-              <tr className="border-t dark:border-gray-700">
-                <td className="p-3 text-gray-500 dark:text-gray-400">Availability</td>
-                {services.map((s) => (
-                  <td key={s.id} className="p-3 dark:text-white">{s.available}</td>
-                ))}
-              </tr>
-              <tr className="border-t dark:border-gray-700">
-                <td className="p-3 text-gray-500 dark:text-gray-400">Features</td>
-                {services.map((s) => (
-                  <td key={s.id} className="p-3 dark:text-white">
-                    <ul className="text-sm space-y-1">
-                      {s.features.slice(0, 3).map((f, i) => (
-                        <li key={i} className="flex items-center gap-1">
-                          <Check className="w-3 h-3 text-green-500" />
-                          {f}
-                        </li>
+
+        <div className="flex">
+          {/* Feature Selector Sidebar */}
+          <div className="w-64 p-6 border-r border-gray-200/50 dark:border-gray-700/50 bg-gray-50/50 dark:bg-gray-900/50">
+            <h4 className="font-semibold dark:text-white mb-4">Select Features</h4>
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {allFeatures.map(feature => (
+                <label key={feature} className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selectedFeatures.includes(feature)}
+                    onChange={() => handleFeatureToggle(feature)}
+                    className="w-4 h-4 accent-green-500"
+                  />
+                  <span className="text-sm dark:text-white">{feature}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Comparison Table */}
+          <div className="flex-1 overflow-auto">
+            <div className="p-6">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-max">
+                  <thead className="sticky top-0 bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm">
+                    <tr>
+                      <th className="text-left p-4 font-semibold dark:text-white border-b border-gray-200 dark:border-gray-700">
+                        Feature
+                      </th>
+                      {services.map((s, i) => (
+                        <th key={s.id} className="text-left p-4 dark:text-white border-b border-gray-200 dark:border-gray-700 min-w-48">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                              {s.icon}
+                            </div>
+                            <div>
+                              <div className="font-semibold">{s.title}</div>
+                              <div className="text-sm text-gray-500 dark:text-gray-400">
+                                {s.startingPrice === 0 ? 'Free' : `$${s.startingPrice}`}
+                              </div>
+                            </div>
+                          </div>
+                        </th>
                       ))}
-                    </ul>
-                  </td>
-                ))}
-              </tr>
-              <tr className="border-t dark:border-gray-700">
-                <td className="p-3 text-gray-500 dark:text-gray-400">SLA</td>
-                {services.map((s) => (
-                  <td key={s.id} className="p-3 dark:text-white text-sm">{s.sla}</td>
-                ))}
-              </tr>
-            </tbody>
-          </table>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedFeatures.map(feature => {
+                      const values = services.map(service => {
+                        switch (feature) {
+                          case 'Price': return service.startingPrice;
+                          case 'Rating': return service.rating;
+                          case 'Duration': return service.duration;
+                          case 'Availability': return service.available;
+                          case 'Features': return service.features;
+                          case 'SLA': return service.sla;
+                          case 'Stats': return service.stats;
+                          case 'Category': return service.category;
+                          case 'Certifications': return service.certifications;
+                          case 'Timeline': return service.timeline;
+                          case 'Use Cases': return service.useCases;
+                          default: return '';
+                        }
+                      });
+
+                      return (
+                        <tr key={feature} className="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50/50 dark:hover:bg-gray-800/50">
+                          <td className="p-4 font-medium text-gray-700 dark:text-gray-300 sticky left-0 bg-white/95 dark:bg-gray-800/95">
+                            {feature}
+                          </td>
+                          {services.map((service, i) => {
+                            const value = values[i];
+                            const highlightClass = getHighlightClass(values.map(v => String(v)), i);
+
+                            return (
+                              <td key={service.id} className={`p-4 ${highlightClass}`}>
+                                {feature === 'Rating' ? (
+                                  <div className="flex items-center gap-1">
+                                    <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
+                                    <span className="font-medium">{value}</span>
+                                  </div>
+                                ) : feature === 'Features' ? (
+                                  <ul className="text-sm space-y-1">
+                                    {value.slice(0, 3).map((f, idx) => (
+                                      <li key={idx} className="flex items-center gap-1">
+                                        <Check className="w-3 h-3 text-green-500" />
+                                        {f}
+                                      </li>
+                                    ))}
+                                    {value.length > 3 && (
+                                      <li className="text-xs text-gray-500">+{value.length - 3} more</li>
+                                    )}
+                                  </ul>
+                                ) : feature === 'Certifications' ? (
+                                  <div className="flex flex-wrap gap-1">
+                                    {value.map((cert, idx) => (
+                                      <span key={idx} className="text-xs bg-purple-100 dark:bg-purple-800 text-purple-800 dark:text-purple-200 px-2 py-1 rounded">
+                                        {cert}
+                                      </span>
+                                    ))}
+                                  </div>
+                                ) : feature === 'Use Cases' ? (
+                                  <div className="flex flex-wrap gap-1">
+                                    {value.map((useCase, idx) => (
+                                      <span key={idx} className="text-xs bg-blue-100 dark:bg-blue-800 text-blue-800 dark:text-blue-200 px-2 py-1 rounded">
+                                        {useCase}
+                                      </span>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <span className="text-sm">{value}</span>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Sticky Footer */}
+        <div className="sticky bottom-0 p-6 border-t border-gray-200/50 dark:border-gray-700/50 bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm">
+          <div className="flex justify-between items-center">
+            <div className="text-sm text-gray-500 dark:text-gray-400">
+              Differences are highlighted in yellow
+            </div>
+            <div className="flex gap-3">
+              {services.map(service => (
+                <GlowButton
+                  key={service.id}
+                  className="text-sm py-2 px-4"
+                  onClick={() => onBook?.(service)}
+                >
+                  Book {service.title}
+                </GlowButton>
+              ))}
+            </div>
+          </div>
         </div>
       </motion.div>
     </motion.div>
@@ -1123,6 +1333,7 @@ const CompareModal = ({ services, onClose }) => {
 // Main Services Component
 const Services = () => {
   // State management
+  const navigate = useNavigate();
   const [selectedService, setSelectedService] = useState(null);
   const [darkMode, setDarkMode] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
@@ -1136,245 +1347,118 @@ const Services = () => {
   const [showCalculator, setShowCalculator] = useState(false);
   const [compare, setCompare] = useState([]);
   const [showCompare, setShowCompare] = useState(false);
+  const [compareFeatures, setCompareFeatures] = useState(['Price', 'Rating', 'Duration', 'Availability', 'Features', 'SLA']);
   const [notifications, setNotifications] = useState([]);
   const [fontSize, setFontSize] = useState(16);
   const [highContrast, setHighContrast] = useState(false);
   const [showExitPopup, setShowExitPopup] = useState(false);
   const [hasShownExitPopup, setHasShownExitPopup] = useState(false);
+  const [priceRange, setPriceRange] = useState([0, 50]);
+  const [ratingRange, setRatingRange] = useState([0, 5]);
+  const [analytics, setAnalytics] = useState({ views: 0, compares: 0, bookings: 0 });
+  const [recommendations, setRecommendations] = useState([]);
+  const [showVideoTestimonial, setShowVideoTestimonial] = useState(false);
+  const [activeVideo, setActiveVideo] = useState(null);
+  const [services, setServices] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const priceRangeInitialized = useRef(false);
 
   // Parallax effect
   const { scrollY } = useScroll();
   const parallaxY = useTransform(scrollY, [0, 500], [0, 150]);
   const parallaxOpacity = useTransform(scrollY, [0, 300], [1, 0.5]);
 
-  // Services data
-  const services = useMemo(
-    () => [
-      {
-        id: "1",
-        title: "Book Appointment",
-        description: "Schedule consultations with our top specialists for personalized medical care.",
-        icon: <CalendarDays className="h-8 w-8 text-green-700" />,
-        badge: "Popular",
-        available: "Mon - Sat",
-        rating: 4.9,
-        price: "Free",
-        startingPrice: 0,
-        category: "Appointments",
-        stats: "15,000+ appointments booked",
-        duration: "30-60 mins",
-        deliverables: ["Consultation", "Prescription", "Follow-up"],
-        skillStack: ["Telemedicine", "Patient Care", "Medical Diagnosis"],
-        specialBadge: "Most Trusted",
-        features: ["Video Call", "Chat Support", "Emergency Access"],
-        useCases: ["Routine Checkup", "Specialist Consultation", "Second Opinion"],
-        timeline: "Immediate booking, same-day slots available",
-        faq: [
-          { q: "How long does an appointment take?", a: "30-60 minutes depending on the specialist." },
-          { q: "Can I reschedule?", a: "Yes, up to 24 hours before." }
-        ],
-        portfolio: ["Patient A recovered in 2 weeks", "Patient B improved health metrics"],
-        reviews: [
-          { name: "John D.", rating: 5, comment: "Excellent service! The doctor was very thorough." },
-          { name: "Sarah M.", rating: 5, comment: "Very professional and caring staff." }
-        ],
-        pricingBreakdown: [{ plan: "Basic", price: 0 }, { plan: "Premium", price: 50 }],
-        techStack: ["React", "Node.js", "WebRTC"],
-        testimonials: [{ text: "Life-changing experience!", author: "Patient X", video: null }],
-        caseStudies: ["Improved patient outcomes by 40%"],
-        clientLogos: ["Hospital A", "Clinic B"],
-        certifications: ["JCI Accredited", "HIPAA Compliant"],
-        sla: "99.9% uptime guarantee",
-        beforeAfter: { before: "Long wait times", after: "Instant scheduling" }
-      },
-      {
-        id: "2",
-        title: "Online Lab Reports",
-        description: "Access your test results securely from anywhere with encrypted digital reports.",
-        icon: <FlaskConical className="h-8 w-8 text-green-700" />,
-        badge: "New",
-        available: "24/7",
-        rating: 4.8,
-        price: "Included",
-        startingPrice: 0,
-        category: "Reports",
-        stats: "25,000+ reports delivered",
-        duration: "Instant",
-        deliverables: ["Digital Report", "Interpretation", "Historical Data"],
-        skillStack: ["Data Security", "Medical Analysis", "Digital Health"],
-        specialBadge: "Secure & Fast",
-        features: ["Encrypted Access", "Download PDF", "Share with Doctor"],
-        useCases: ["Post-Test Review", "Health Monitoring", "Insurance Claims"],
-        timeline: "Results available within 24 hours",
-        faq: [
-          { q: "How secure are my reports?", a: "End-to-end encrypted with 256-bit encryption." },
-          { q: "Can I share reports?", a: "Yes, with authorized healthcare personnel." }
-        ],
-        portfolio: ["Integrated with 50+ labs", "Processed 100K+ tests"],
-        reviews: [
-          { name: "Mike R.", rating: 5, comment: "Quick and secure! Got results instantly." },
-          { name: "Lisa K.", rating: 4, comment: "Easy to use interface." }
-        ],
-        pricingBreakdown: [{ plan: "Free", price: 0 }, { plan: "Premium Analysis", price: 25 }],
-        techStack: ["Blockchain", "AI Analysis", "Cloud Storage"],
-        testimonials: [{ text: "Got my results instantly!", author: "Patient Y", video: null }],
-        caseStudies: ["Reduced wait times by 80%"],
-        clientLogos: ["Lab Corp", "Quest Diagnostics"],
-        certifications: ["ISO 27001", "GDPR Compliant"],
-        sla: "24/7 support with 1-hour response",
-        beforeAfter: { before: "Paper reports", after: "Instant digital access" }
-      },
-      {
-        id: "3",
-        title: "Billing & Payments",
-        description: "Pay bills online securely with multiple payment options and review invoices.",
-        icon: <CreditCard className="h-8 w-8 text-green-700" />,
-        badge: null,
-        available: "24/7",
-        rating: 4.6,
-        price: "As per usage",
-        startingPrice: 10,
-        category: "Billing",
-        stats: "98% secure transactions",
-        duration: "Instant",
-        deliverables: ["Invoice Generation", "Payment Processing", "Receipt"],
-        skillStack: ["Payment Security", "Financial Management", "Compliance"],
-        specialBadge: "Secure Payments",
-        features: ["Multiple Payment Methods", "Auto-reminders", "Tax Invoices"],
-        useCases: ["Bill Payment", "Insurance Claims", "Expense Tracking"],
-        timeline: "Immediate processing",
-        faq: [
-          { q: "What payment methods?", a: "Credit card, bank transfer, digital wallets." },
-          { q: "Are payments secure?", a: "Yes, PCI DSS compliant with fraud protection." }
-        ],
-        portfolio: ["Processed $10M+ in payments", "Integrated with major banks"],
-        reviews: [
-          { name: "Tom H.", rating: 4, comment: "Convenient billing system." },
-          { name: "Anna P.", rating: 5, comment: "Secure and fast processing." }
-        ],
-        pricingBreakdown: [{ plan: "Basic", price: 0 }, { plan: "Enterprise", price: 100 }],
-        techStack: ["Stripe API", "Encryption", "Audit Logs"],
-        testimonials: [{ text: "Never had issues with payments!", author: "Patient Z", video: null }],
-        caseStudies: ["Reduced payment errors by 95%"],
-        clientLogos: ["Visa", "Mastercard"],
-        certifications: ["PCI DSS", "SOC 2"],
-        sla: "99.99% uptime",
-        beforeAfter: { before: "Manual payments", after: "One-click checkout" }
-      },
-      {
-        id: "4",
-        title: "Home Health Services",
-        description: "Receive lab tests, nursing care & medical attention at your doorstep.",
-        icon: <Home className="h-8 w-8 text-green-700" />,
-        badge: "Featured",
-        available: "Weekends Only",
-        rating: 4.7,
-        price: "$25/session",
-        startingPrice: 25,
-        category: "Home Care",
-        stats: "1,500+ home visits completed",
-        duration: "1-2 hours",
-        deliverables: ["Nursing Care", "Lab Tests", "Medication"],
-        skillStack: ["Home Nursing", "Patient Monitoring", "Emergency Response"],
-        specialBadge: "Comfort at Home",
-        features: ["Skilled Nurses", "Mobile Lab", "24/7 Support"],
-        useCases: ["Post-Surgery Care", "Chronic Disease Management", "Elderly Care"],
-        timeline: "Scheduled within 24 hours",
-        faq: [
-          { q: "What's included?", a: "Nursing, tests, and medication management." },
-          { q: "How to schedule?", a: "Call or book online for next available slot." }
-        ],
-        portfolio: ["Cared for 500+ patients", "95% satisfaction rate"],
-        reviews: [
-          { name: "Robert L.", rating: 5, comment: "Excellent home care service!" },
-          { name: "Emma W.", rating: 5, comment: "Very caring and professional staff." }
-        ],
-        pricingBreakdown: [{ plan: "Basic Visit", price: 25 }, { plan: "Extended Care", price: 75 }],
-        techStack: ["IoT Devices", "Mobile App", "GPS Tracking"],
-        testimonials: [{ text: "Felt like family care!", author: "Patient W", video: null }],
-        caseStudies: ["Improved recovery times by 30%"],
-        clientLogos: ["Home Health Inc", "CarePlus"],
-        certifications: ["Joint Commission", "State Licensed"],
-        sla: "Guaranteed response within 2 hours",
-        beforeAfter: { before: "Hospital visits", after: "Care at home" }
-      },
-      {
-        id: "5",
-        title: "Telemedicine Consultation",
-        description: "Connect with doctors remotely for expert medical advice anytime, anywhere.",
-        icon: <Video className="h-8 w-8 text-blue-700" />,
-        badge: "Trending",
-        available: "24/7",
-        rating: 4.8,
-        price: "$15/session",
-        startingPrice: 15,
-        category: "Telemedicine",
-        stats: "50,000+ consultations",
-        duration: "15-30 mins",
-        deliverables: ["Video Consultation", "Prescription", "Follow-up Plan"],
-        skillStack: ["Telemedicine", "Remote Diagnosis", "Digital Health"],
-        specialBadge: "Always Available",
-        features: ["HD Video", "Secure Chat", "E-Prescription"],
-        useCases: ["Minor Illness", "Follow-up", "Mental Health"],
-        timeline: "Available in 5 minutes",
-        faq: [
-          { q: "Do I need special equipment?", a: "Just a smartphone or computer with camera." },
-          { q: "Is it covered by insurance?", a: "Depends on your insurance plan." }
-        ],
-        portfolio: ["Connected 10K+ patients", "Reduced ER visits by 40%"],
-        reviews: [
-          { name: "David S.", rating: 5, comment: "Convenient and effective!" },
-          { name: "Maria G.", rating: 4, comment: "Great doctors, easy platform." }
-        ],
-        pricingBreakdown: [{ plan: "Standard", price: 15 }, { plan: "Priority", price: 30 }],
-        techStack: ["WebRTC", "AI Triage", "EHR Integration"],
-        testimonials: [{ text: "Saved me a trip to the hospital!", author: "Patient V", video: null }],
-        caseStudies: ["Improved access in rural areas by 60%"],
-        clientLogos: ["Teladoc", "Amwell"],
-        certifications: ["HIPAA", "HITECH"],
-        sla: "5-minute average wait time",
-        beforeAfter: { before: "Drive to clinic", after: "Doctor on your phone" }
-      },
-      {
-        id: "6",
-        title: "Mental Health Support",
-        description: "Professional counseling and therapy services with licensed therapists.",
-        icon: <Heart className="h-8 w-8 text-purple-700" />,
-        badge: "Essential",
-        available: "Mon - Fri",
-        rating: 4.9,
-        price: "$20/session",
-        startingPrice: 20,
-        category: "Mental Health",
-        stats: "8,000+ sessions completed",
-        duration: "45 mins",
-        deliverables: ["Therapy Session", "Coping Strategies", "Progress Tracking"],
-        skillStack: ["Psychology", "Counseling", "Mental Health"],
-        specialBadge: "Compassionate Care",
-        features: ["Licensed Therapists", "Confidential", "Flexible Scheduling"],
-        useCases: ["Anxiety", "Depression", "Stress Management"],
-        timeline: "Book within a week",
-        faq: [
-          { q: "Is it confidential?", a: "Absolutely, HIPAA protected and private." },
-          { q: "What therapies offered?", a: "CBT, DBT, mindfulness, and more." }
-        ],
-        portfolio: ["Helped 2K+ patients", "90% reported improvement"],
-        reviews: [
-          { name: "Chris B.", rating: 5, comment: "Life-changing support!" },
-          { name: "Nina T.", rating: 5, comment: "Empathetic and skilled therapists." }
-        ],
-        pricingBreakdown: [{ plan: "Individual", price: 20 }, { plan: "Couples", price: 35 }],
-        techStack: ["Secure Platform", "Progress Analytics", "AI Matching"],
-        testimonials: [{ text: "Found my peace again!", author: "Patient U", video: null }],
-        caseStudies: ["Reduced anxiety symptoms by 60%"],
-        clientLogos: ["Psychology Today", "BetterHelp"],
-        certifications: ["APA Approved", "State Licensed"],
-        sla: "Guaranteed privacy and confidentiality",
-        beforeAfter: { before: "Struggling alone", after: "Professional support" }
-      }
-    ],
-    []
-  );
+  const iconForService = (service) => {
+    const category = (service.category || "").toLowerCase();
+    const title = (service.title || "").toLowerCase();
+    if (category.includes("tele") || title.includes("tele")) {
+      return <Video className="h-8 w-8 text-blue-700" />;
+    }
+    if (category.includes("diagnostic") || title.includes("diagnostic") || title.includes("lab")) {
+      return <FlaskConical className="h-8 w-8 text-green-700" />;
+    }
+    if (category.includes("cardio") || title.includes("cardiac")) {
+      return <Heart className="h-8 w-8 text-red-600" />;
+    }
+    if (category.includes("neuro")) {
+      return <Activity className="h-8 w-8 text-purple-600" />;
+    }
+    if (category.includes("concierge") || title.includes("concierge")) {
+      return <Sparkles className="h-8 w-8 text-amber-600" />;
+    }
+    if (category.includes("mental")) {
+      return <Heart className="h-8 w-8 text-purple-700" />;
+    }
+    if (category.includes("billing") || title.includes("billing")) {
+      return <CreditCard className="h-8 w-8 text-green-700" />;
+    }
+    if (category.includes("home")) {
+      return <Home className="h-8 w-8 text-green-700" />;
+    }
+    return <CalendarDays className="h-8 w-8 text-green-700" />;
+  };
+
+  const normalizeService = (service, index) => ({
+    id: service._id || service.id || `svc-${index + 1}`,
+    title: service.title || "Service",
+    description: service.description || "",
+    icon: iconForService(service),
+    badge: service.badge || null,
+    available: service.available || "By appointment",
+    rating: service.rating ?? 4.7,
+    price: service.price || (service.startingPrice === 0 ? "Free" : `$${service.startingPrice || 0}`),
+    startingPrice: service.startingPrice ?? 0,
+    category: service.category || "General",
+    stats: service.stats || "Trusted by thousands",
+    duration: service.duration || "30-60 mins",
+    deliverables: Array.isArray(service.deliverables) ? service.deliverables : [],
+    skillStack: Array.isArray(service.skillStack) ? service.skillStack : [],
+    specialBadge: service.specialBadge || null,
+    features: Array.isArray(service.features) ? service.features : [],
+    useCases: Array.isArray(service.useCases) ? service.useCases : [],
+    timeline: service.timeline || "Flexible scheduling",
+    faq: Array.isArray(service.faq) ? service.faq : [],
+    portfolio: Array.isArray(service.portfolio) ? service.portfolio : [],
+    reviews: Array.isArray(service.reviews) ? service.reviews : [],
+    pricingBreakdown: Array.isArray(service.pricingBreakdown) ? service.pricingBreakdown : [],
+    techStack: Array.isArray(service.techStack) ? service.techStack : [],
+    testimonials: Array.isArray(service.testimonials) ? service.testimonials : [],
+    caseStudies: Array.isArray(service.caseStudies) ? service.caseStudies : [],
+    clientLogos: Array.isArray(service.clientLogos) ? service.clientLogos : [],
+    certifications: Array.isArray(service.certifications) ? service.certifications : [],
+    sla: service.sla || "SLA available on request",
+    beforeAfter: service.beforeAfter || null,
+  });
+
+  const loadServices = async () => {
+    setIsLoading(true);
+    setLoadError("");
+    try {
+      const data = await apiRequest("/api/services");
+      const normalized = Array.isArray(data)
+        ? data.map((service, index) => normalizeService(service, index))
+        : [];
+      setServices(normalized);
+    } catch (error) {
+      setLoadError("Unable to load services right now. Please try again shortly.");
+      setServices([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+    const guardedLoad = async () => {
+      if (!isMounted) return;
+      await loadServices();
+    };
+    guardedLoad();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Toggle theme
   const toggleTheme = () => setDarkMode((prev) => !prev);
@@ -1425,11 +1509,35 @@ const Services = () => {
   }, [search, services]);
 
   // Filter + Search + Sort
+  const categories = useMemo(
+    () => ["All", ...new Set(services.map((s) => s.category).filter(Boolean))],
+    [services]
+  );
+
+  const priceRangeMax = useMemo(() => {
+    const max = services.reduce((acc, service) => {
+      const value = Number(service.startingPrice ?? 0);
+      return value > acc ? value : acc;
+    }, 50);
+    return Math.max(50, Math.ceil(max / 10) * 10);
+  }, [services]);
+
+  useEffect(() => {
+    if (!priceRangeInitialized.current && services.length > 0) {
+      setPriceRange([0, priceRangeMax]);
+      priceRangeInitialized.current = true;
+    }
+  }, [services, priceRangeMax]);
+
   const filteredServices = useMemo(() => {
     let filtered = services.filter(
       (s) =>
         (filter === "All" || s.category === filter) &&
-        s.title.toLowerCase().includes(search.toLowerCase())
+        s.title.toLowerCase().includes(search.toLowerCase()) &&
+        (s.startingPrice ?? 0) >= priceRange[0] &&
+        (s.startingPrice ?? 0) <= priceRange[1] &&
+        (s.rating ?? 0) >= ratingRange[0] &&
+        (s.rating ?? 0) <= ratingRange[1]
     );
 
     filtered.sort((a, b) => {
@@ -1446,26 +1554,49 @@ const Services = () => {
     });
 
     return filtered;
-  }, [services, filter, search, sort]);
+  }, [services, filter, search, sort, priceRange, ratingRange]);
 
   // Actions
-  const toggleFavorite = (id) => {
-    setFavorites((prev) =>
-      prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id]
-    );
-    addNotification("Favorites updated!", "success");
+  const postEngagement = async (endpoint, payload, successMessage) => {
+    try {
+      await apiRequest(endpoint, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      if (successMessage) {
+        addNotification(successMessage, "success");
+      }
+      return true;
+    } catch (error) {
+      addNotification("Unable to save your action. Please try again.", "error");
+      return false;
+    }
   };
 
-  const handleCompare = (service) => {
+  const toggleFavorite = async (id) => {
+    const willAdd = !favorites.includes(id);
+    setFavorites((prev) => (willAdd ? [...prev, id] : prev.filter((f) => f !== id)));
+    if (willAdd) {
+      await postEngagement("/api/service-engagements/favorite", { serviceId: id }, "Added to favorites");
+    } else {
+      addNotification("Removed from favorites", "info");
+    }
+  };
+
+  const handleCompare = async (service) => {
     if (compare.find((c) => c.id === service.id)) {
       setCompare(compare.filter((c) => c.id !== service.id));
-    } else if (compare.length < 2) {
+      addNotification("Removed from comparison", "info");
+      return;
+    }
+    if (compare.length < 4) {
       setCompare([...compare, service]);
-      if (compare.length === 1) {
+      await postEngagement("/api/service-engagements/compare", { serviceId: service.id });
+      if (compare.length === 3) {
         addNotification("Ready to compare! Click Compare button.", "info");
       }
     } else {
-      addNotification("Can only compare 2 services at a time", "warning");
+      addNotification("Can only compare up to 4 services at a time", "warning");
     }
   };
 
@@ -1485,9 +1616,53 @@ const Services = () => {
     setNotifications((prev) => prev.filter((n) => n.id !== id));
   };
 
-  const handleQuizResult = (category) => {
+  const handleQuizResult = async ({ category, answers }) => {
     setFilter(category);
+    await postEngagement("/api/service-engagements/quiz", {
+      answers,
+      recommendedCategory: category,
+    });
     addNotification(`Showing ${category} services based on your preferences!`, "success");
+  };
+
+  const handleViewService = async (service) => {
+    setSelectedService(service);
+    await postEngagement("/api/service-engagements/view", { serviceId: service.id });
+  };
+
+  const handleBookService = async (service) => {
+    await postEngagement("/api/service-engagements/view", { serviceId: service.id });
+    addNotification("Redirecting to booking...", "info");
+    setSelectedService(null);
+    navigate("/book-appointment", {
+      state: {
+        serviceId: service.id,
+        serviceTitle: service.title,
+      },
+    });
+  };
+
+  const handlePricingSubmit = async (payload) => {
+    const saved = await postEngagement("/api/service-engagements/pricing", payload, "Pricing estimate saved");
+    if (saved) {
+      setShowCalculator(false);
+    }
+  };
+
+  const handleSubscribe = async (email) => {
+    return await postEngagement("/api/service-engagements/newsletter", { email }, "Subscription saved");
+  };
+
+  const handleOfferClaim = async (code) => {
+    await postEngagement("/api/service-engagements/offer", { code }, "Offer unlocked");
+  };
+
+  const resetFilters = () => {
+    setSearch("");
+    setFilter("All");
+    setSort("name");
+    setPriceRange([0, priceRangeMax]);
+    setRatingRange([0, 5]);
   };
 
   return (
@@ -1614,13 +1789,11 @@ const Services = () => {
                     className="px-4 py-3 border rounded-xl dark:bg-gray-900 dark:text-white dark:border-gray-700 focus:ring-2 focus:ring-green-500 transition"
                     aria-label="Filter by category"
                   >
-                    <option value="All">All Categories</option>
-                    <option value="Appointments">Appointments</option>
-                    <option value="Reports">Reports</option>
-                    <option value="Billing">Billing</option>
-                    <option value="Home Care">Home Care</option>
-                    <option value="Telemedicine">Telemedicine</option>
-                    <option value="Mental Health">Mental Health</option>
+                    {categories.map((category) => (
+                      <option key={category} value={category}>
+                        {category === "All" ? "All Categories" : category}
+                      </option>
+                    ))}
                   </select>
                   <select
                     value={sort}
@@ -1642,14 +1815,76 @@ const Services = () => {
                       Find Service
                     </span>
                   </GlowButton>
-                  {compare.length === 2 && (
-                    <GlowButton onClick={() => setShowCompare(true)}>
-                      <span className="flex items-center gap-2">
-                        <BarChart2 className="w-4 h-4" />
-                        Compare ({compare.length})
-                      </span>
-                    </GlowButton>
+                  {compare.length >= 2 && (
+                    <motion.div
+                      animate={compare.length >= 2 ? { scale: [1, 1.1, 1] } : {}}
+                      transition={{ duration: 0.5, repeat: compare.length >= 2 ? Infinity : 0, repeatDelay: 2 }}
+                    >
+                      <GlowButton onClick={() => setShowCompare(true)}>
+                        <span className="flex items-center gap-2">
+                          <BarChart2 className="w-4 h-4" />
+                          Compare ({compare.length})
+                        </span>
+                      </GlowButton>
+                    </motion.div>
                   )}
+                </div>
+              </div>
+
+              {/* Advanced Filters */}
+              <div className="mt-6 pt-6 border-t border-gray-200/50 dark:border-gray-700/50">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Price Range Slider */}
+                  <div>
+                    <label className="block text-sm font-medium dark:text-white mb-3">
+                      Price Range: ${priceRange[0]} - ${priceRange[1]}
+                    </label>
+                    <div className="px-2">
+                      <input
+                        type="range"
+                        min="0"
+                        max={priceRangeMax}
+                        value={priceRange[0]}
+                        onChange={(e) => setPriceRange([Number(e.target.value), priceRange[1]])}
+                        className="w-full accent-green-500"
+                      />
+                      <input
+                        type="range"
+                        min="0"
+                        max={priceRangeMax}
+                        value={priceRange[1]}
+                        onChange={(e) => setPriceRange([priceRange[0], Number(e.target.value)])}
+                        className="w-full accent-green-500 mt-2"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Rating Range Slider */}
+                  <div>
+                    <label className="block text-sm font-medium dark:text-white mb-3">
+                      Rating Range: {ratingRange[0]} - {ratingRange[1]} stars
+                    </label>
+                    <div className="px-2">
+                      <input
+                        type="range"
+                        min="0"
+                        max="5"
+                        step="0.1"
+                        value={ratingRange[0]}
+                        onChange={(e) => setRatingRange([Number(e.target.value), ratingRange[1]])}
+                        className="w-full accent-yellow-500"
+                      />
+                      <input
+                        type="range"
+                        min="0"
+                        max="5"
+                        step="0.1"
+                        value={ratingRange[1]}
+                        onChange={(e) => setRatingRange([ratingRange[0], Number(e.target.value)])}
+                        className="w-full accent-yellow-500 mt-2"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1657,11 +1892,79 @@ const Services = () => {
 
           {/* Services Grid */}
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 mb-12">
-            {filteredServices.map((service, idx) => (
+            {isLoading && (
+              Array.from({ length: 6 }).map((_, idx) => (
+                <div
+                  key={`skeleton-${idx}`}
+                  className="bg-white/70 dark:bg-gray-800/70 rounded-2xl p-6 shadow-lg border border-gray-200/50 dark:border-gray-700/50 animate-pulse"
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="w-12 h-12 rounded-xl bg-gray-200 dark:bg-gray-700" />
+                    <div className="w-16 h-5 rounded-full bg-gray-200 dark:bg-gray-700" />
+                  </div>
+                  <div className="h-5 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mb-3" />
+                  <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-full mb-2" />
+                  <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-2/3 mb-4" />
+                  <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded-xl" />
+                </div>
+              ))
+            )}
+
+            {!isLoading && loadError && (
+              <div className="col-span-full">
+                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-200 rounded-2xl p-6 text-center">
+                  {loadError}
+                </div>
+              </div>
+            )}
+
+            {!isLoading && !loadError && services.length === 0 && (
+              <div className="col-span-full">
+                <div className="bg-white/80 dark:bg-gray-800/80 border border-gray-200/60 dark:border-gray-700/60 rounded-2xl p-8 text-center text-gray-600 dark:text-gray-300">
+                  <p className="text-base font-medium">
+                    No services are available yet. Seed the services collection or reload.
+                  </p>
+                  <div className="mt-5 flex justify-center gap-3">
+                    <GlowButton onClick={loadServices} className="px-6">
+                      Reload Services
+                    </GlowButton>
+                    <GlowButton onClick={resetFilters} className="px-6" variant="secondary">
+                      Reset Filters
+                    </GlowButton>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {!isLoading && !loadError && services.length > 0 && filteredServices.length === 0 && (
+              <div className="col-span-full">
+                <div className="bg-white/80 dark:bg-gray-800/80 border border-gray-200/60 dark:border-gray-700/60 rounded-2xl p-8 text-center text-gray-600 dark:text-gray-300">
+                  <p className="text-base font-medium">
+                    No services match your filters. Try expanding the range or clearing search.
+                  </p>
+                  <div className="mt-5 flex justify-center">
+                    <GlowButton onClick={resetFilters} className="px-6">
+                      Reset Filters
+                    </GlowButton>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {!isLoading && !loadError && filteredServices.map((service, idx) => (
               <ScrollReveal key={service.id} delay={idx * 0.05}>
                 <motion.article
                   className="group bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm text-gray-800 dark:text-white p-6 rounded-2xl shadow-lg hover:shadow-2xl border border-gray-200/50 dark:border-gray-700/50 transition-all duration-300 relative overflow-hidden"
-                  whileHover={{ y: -5 }}
+                  whileHover={{
+                    y: -5,
+                    rotateX: 5,
+                    rotateY: 5,
+                    scale: 1.02
+                  }}
+                  style={{
+                    transformStyle: "preserve-3d",
+                    perspective: "1000px"
+                  }}
                   role="article"
                   aria-labelledby={`service-title-${service.id}`}
                 >
@@ -1743,7 +2046,7 @@ const Services = () => {
                     <div className="flex flex-col gap-3">
                       <div className="flex justify-between items-center">
                         <button
-                          onClick={() => setSelectedService(service)}
+                          onClick={() => handleViewService(service)}
                           className="text-sm text-green-700 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300 hover:underline transition-colors font-medium"
                           aria-label={`View details for ${service.title}`}
                         >
@@ -1775,7 +2078,7 @@ const Services = () => {
                         </div>
                       </div>
 
-                      <GlowButton className="w-full text-sm py-2">
+                      <GlowButton className="w-full text-sm py-2" onClick={() => handleBookService(service)}>
                         Book Now
                       </GlowButton>
                     </div>
@@ -1801,7 +2104,7 @@ const Services = () => {
           <TrustSection />
 
           {/* Newsletter */}
-          <NewsletterSection />
+          <NewsletterSection onSubscribe={handleSubscribe} onResource={handleOfferClaim} />
         </div>
       </section>
 
@@ -1910,15 +2213,21 @@ const Services = () => {
 
                     {/* CTA Buttons */}
                     <div className="space-y-3 pt-4">
-                      <GlowButton className="w-full">
+                      <GlowButton className="w-full" onClick={() => handleBookService(selectedService)}>
                         Book Now - {selectedService.startingPrice === 0 ? "Free" : `$${selectedService.startingPrice}`}
                       </GlowButton>
                       <div className="flex gap-2">
-                        <button className="flex-1 flex items-center justify-center gap-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 py-2 px-4 rounded-lg font-medium transition-colors text-sm">
+                        <button
+                          className="flex-1 flex items-center justify-center gap-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 py-2 px-4 rounded-lg font-medium transition-colors text-sm"
+                          onClick={() => addNotification("Call request queued. A coordinator will reach out shortly.", "info")}
+                        >
                           <Phone className="w-4 h-4" />
                           Call
                         </button>
-                        <button className="flex-1 flex items-center justify-center gap-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 py-2 px-4 rounded-lg font-medium transition-colors text-sm">
+                        <button
+                          className="flex-1 flex items-center justify-center gap-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 py-2 px-4 rounded-lg font-medium transition-colors text-sm"
+                          onClick={() => addNotification("Launching secure video intake...", "info")}
+                        >
                           <Video className="w-4 h-4" />
                           Video
                         </button>
@@ -2036,8 +2345,14 @@ const Services = () => {
 
       {/* Compare Modal */}
       <AnimatePresence>
-        {showCompare && compare.length === 2 && (
-          <CompareModal services={compare} onClose={() => setShowCompare(false)} />
+        {showCompare && compare.length >= 2 && (
+          <CompareModal
+            services={compare}
+            onClose={() => setShowCompare(false)}
+            compareFeatures={compareFeatures}
+            setCompareFeatures={setCompareFeatures}
+            onBook={handleBookService}
+          />
         )}
       </AnimatePresence>
 
@@ -2045,7 +2360,11 @@ const Services = () => {
       <ServiceQuiz isOpen={showQuiz} onClose={() => setShowQuiz(false)} onResult={handleQuizResult} />
 
       {/* Calculator Modal */}
-      <PricingCalculator isOpen={showCalculator} onClose={() => setShowCalculator(false)} />
+      <PricingCalculator
+        isOpen={showCalculator}
+        onClose={() => setShowCalculator(false)}
+        onSubmit={handlePricingSubmit}
+      />
 
       {/* Floating Chat Button */}
       <motion.button
@@ -2109,7 +2428,10 @@ const Services = () => {
                   No Thanks
                 </button>
                 <button
-                  onClick={() => setShowExitPopup(false)}
+                  onClick={() => {
+                    handleOfferClaim("HEALTH20");
+                    setShowExitPopup(false);
+                  }}
                   className="flex-1 bg-white text-green-600 py-3 rounded-xl font-medium hover:bg-gray-100 transition"
                 >
                   Claim Offer

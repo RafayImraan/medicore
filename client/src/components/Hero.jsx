@@ -1,8 +1,9 @@
 // Home.jsx - Complete Hospital Management System
 // Single-file implementation with all features
-import React, { useEffect, useMemo, useRef, useState, useCallback, createContext, useContext } from "react";
+import React, { useEffect, useRef, useState, useCallback, createContext, useContext } from "react";
+import { io } from "socket.io-client";
 import { useNavigate } from 'react-router-dom';
-import { faker } from "@faker-js/faker";
+import { apiRequest } from "../services/api";
 import {
   Search, Moon, Sun, MessageSquare, ArrowUp, Phone, MapPin, ShieldCheck,
   PlayCircle, User, Users, Clock, Bell, Heart, Star, Zap, CheckCircle,
@@ -73,6 +74,7 @@ import {
 
 
 import toast, { Toaster } from "react-hot-toast";
+import Dashboard from "@/pages/viewdashboard";
 
 // ==================== CONTEXT PROVIDERS ====================
 
@@ -135,7 +137,7 @@ export const useTheme = () => {
 };
 
 const ThemeProvider = ({ children }) => {
-  const [dark, setDark] = useState(false);
+  const [dark, setDark] = useState(true);
   const [highContrast, setHighContrast] = useState(false);
   const [fontSize, setFontSize] = useState('base');
 
@@ -364,334 +366,56 @@ const NotificationProvider = ({ children }) => {
   );
 };
 
-// ==================== MOCK DATA GENERATORS ====================
+// ==================== DATA NORMALIZATION ====================
 
-const makeDoctors = (n = 24) =>
-  Array.from({ length: n }).map((_, i) => ({
-    id: i + 1,
-    name: faker.person.fullName(),
-    title: `${faker.helpers.arrayElement(['Senior', 'Junior', 'Head', 'Associate', 'Consulting'])} ${faker.helpers.arrayElement(['Physician', 'Surgeon', 'Specialist', 'Consultant'])}`,
-    specialty: faker.helpers.arrayElement([
-      "Cardiology", "Radiology", "Pediatrics", "Orthopedics", "Neurology",
-      "Gynecology", "ENT", "Dermatology", "Oncology", "Psychiatry",
-      "Urology", "Nephrology", "Gastroenterology", "Pulmonology", "Endocrinology",
-      "Rheumatology", "Ophthalmology", "Anesthesiology", "Emergency Medicine", "General Surgery"
-    ]),
-    avatar: `https://i.pravatar.cc/150?img=${(i % 70) + 1}`,
-    rating: (Math.random() * 1.5 + 3.5).toFixed(1),
-    reviewCount: faker.number.int({ min: 10, max: 500 }),
-    years: faker.number.int({ min: 2, max: 35 }),
-    education: faker.helpers.arrayElements([
-      "MBBS", "MD", "MS", "FCPS", "MRCP", "FRCS", "PhD", "DNB"
-    ], faker.number.int({ min: 2, max: 4 })),
-    languages: faker.helpers.arrayElements(["English", "Urdu", "Arabic", "Chinese", "Hindi", "Spanish", "French"], faker.number.int({ min: 1, max: 4 })),
-    nextAvailable: faker.date.soon({ days: faker.number.int({ min: 1, max: 14 }) }).toISOString().slice(0, 10),
-    consultationFee: faker.number.int({ min: 500, max: 5000 }),
-    hospital: faker.helpers.arrayElement(["Main Campus", "North Wing", "South Campus", "Downtown Clinic", "Suburban Center"]),
-    bio: faker.lorem.paragraph(2),
-    specializations: faker.helpers.arrayElements([
-      "Heart Surgery", "Bypass", "Pacemaker", "Transplant", "Arthroscopy",
-      "Joint Replacement", "Spine Surgery", "Brain Surgery", "Cancer Treatment",
-      "Chemotherapy", "Radiation", "Dialysis", "Pediatric Care", "Neonatal",
-      "Geriatric Care", "Sports Medicine", "Pain Management", "Cosmetic Surgery"
-    ], faker.number.int({ min: 1, max: 4 })),
-    awards: Array.from({ length: faker.number.int({ min: 0, max: 3 }) }).map(() => ({
-      title: faker.helpers.arrayElement(["Best Doctor Award", "Excellence in Medicine", "Patient Choice Award", "Research Excellence"]),
-      year: faker.number.int({ min: 2015, max: 2024 }),
-    })),
-    reviews: Array.from({ length: faker.number.int({ min: 3, max: 8 }) }).map(() => ({
-      text: faker.lorem.sentences(2),
-      author: faker.person.fullName(),
-      rating: faker.number.int({ min: 3, max: 5 }),
-      date: faker.date.recent({ days: 90 }).toISOString().slice(0, 10),
-    })),
-    availability: {
-      monday: faker.helpers.arrayElements(["9:00 AM", "10:00 AM", "11:00 AM", "2:00 PM", "3:00 PM", "4:00 PM"], faker.number.int({ min: 2, max: 6 })),
-      tuesday: faker.helpers.arrayElements(["9:00 AM", "10:00 AM", "11:00 AM", "2:00 PM", "3:00 PM", "4:00 PM"], faker.number.int({ min: 2, max: 6 })),
-      wednesday: faker.helpers.arrayElements(["9:00 AM", "10:00 AM", "11:00 AM", "2:00 PM", "3:00 PM", "4:00 PM"], faker.number.int({ min: 2, max: 6 })),
-      thursday: faker.helpers.arrayElements(["9:00 AM", "10:00 AM", "11:00 AM", "2:00 PM", "3:00 PM", "4:00 PM"], faker.number.int({ min: 2, max: 6 })),
-      friday: faker.helpers.arrayElements(["9:00 AM", "10:00 AM", "11:00 AM", "2:00 PM", "3:00 PM", "4:00 PM"], faker.number.int({ min: 2, max: 6 })),
-    },
-    telemedicineAvailable: faker.datatype.boolean(),
-    acceptsInsurance: faker.helpers.arrayElements(["SehatCard", "PIMA", "State Life", "Jubilee", "EFU", "Adamjee"], faker.number.int({ min: 1, max: 4 })),
+const normalizeDoctors = (list = []) =>
+  list.map((doc, index) => ({
+    id: doc.id || doc._id || `doc-${index}`,
+    name: doc.name || `Doctor ${index + 1}`,
+    title: doc.title || doc.specialization || doc.role || 'Specialist',
+    specialty: doc.specialization || doc.specialty || 'General',
+    avatar: doc.avatar || `https://i.pravatar.cc/150?img=${(index % 70) + 1}`,
+    rating: doc.rating || 0,
+    reviewCount: doc.reviewCount || doc.reviews?.length || 0,
+    years: doc.experience || doc.years || 0,
+    education: doc.education || [],
+    languages: doc.languages || ['English'],
+    nextAvailable: doc.nextAvailable || (doc.slots?.[0]?.date || ''),
+    consultationFee: doc.consultationFee || doc.fees || 0,
+    hospital: doc.hospital || doc.clinic || 'Main Campus',
+    bio: doc.bio || doc.intro || '',
+    specializations: doc.specializations || [],
+    awards: doc.awards || [],
+    reviews: doc.reviews || [],
+    availability: doc.availability || {},
+    telemedicineAvailable: doc.telemedicineAvailable ?? false,
+    acceptsInsurance: doc.acceptsInsurance || [],
+    slots: doc.slots || []
   }));
 
-const makePatients = (n = 50) =>
-  Array.from({ length: n }).map((_, i) => ({
-    id: `P-${1000 + i}`,
-    name: faker.person.fullName(),
-    age: faker.number.int({ min: 1, max: 90 }),
-    gender: faker.helpers.arrayElement(["Male", "Female", "Other"]),
-    bloodGroup: faker.helpers.arrayElement(["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"]),
-    phone: faker.phone.number(),
-    email: faker.internet.email(),
-    address: faker.location.streetAddress(),
-    city: faker.location.city(),
-    avatar: `https://i.pravatar.cc/100?img=${(i % 70) + 1}`,
-    emergencyContact: {
-      name: faker.person.fullName(),
-      relation: faker.helpers.arrayElement(["Spouse", "Parent", "Sibling", "Child", "Friend"]),
-      phone: faker.phone.number(),
-    },
-    allergies: faker.helpers.arrayElements(["Penicillin", "Aspirin", "Sulfa", "Latex", "Peanuts", "None"], faker.number.int({ min: 0, max: 3 })),
-    chronicConditions: faker.helpers.arrayElements(["Diabetes", "Hypertension", "Asthma", "Heart Disease", "Arthritis", "None"], faker.number.int({ min: 0, max: 2 })),
-    currentMedications: Array.from({ length: faker.number.int({ min: 0, max: 4 }) }).map(() => ({
-      name: faker.helpers.arrayElement(["Metformin", "Lisinopril", "Amlodipine", "Omeprazole", "Aspirin", "Atorvastatin"]),
-      dosage: faker.helpers.arrayElement(["10mg", "20mg", "50mg", "100mg"]),
-      frequency: faker.helpers.arrayElement(["Once daily", "Twice daily", "Three times daily"]),
-    })),
-    vitals: {
-      bloodPressure: `${faker.number.int({ min: 90, max: 140 })}/${faker.number.int({ min: 60, max: 90 })}`,
-      heartRate: faker.number.int({ min: 60, max: 100 }),
-      temperature: (faker.number.float({ min: 97, max: 99, fractionDigits: 1 })).toFixed(1),
-      oxygenSaturation: faker.number.int({ min: 95, max: 100 }),
-      weight: faker.number.int({ min: 40, max: 120 }),
-      height: faker.number.int({ min: 140, max: 190 }),
-    },
-    insuranceInfo: {
-      provider: faker.helpers.arrayElement(["SehatCard", "PIMA", "State Life", "Jubilee", "EFU", "Self-Pay"]),
-      policyNumber: faker.string.alphanumeric(12).toUpperCase(),
-      validUntil: faker.date.future({ years: 2 }).toISOString().slice(0, 10),
-    },
-    appointments: Array.from({ length: faker.number.int({ min: 0, max: 5 }) }).map(() => ({
-      id: faker.string.uuid(),
-      date: faker.date.recent({ days: 30 }).toISOString().slice(0, 10),
-      doctor: faker.person.fullName(),
-      specialty: faker.helpers.arrayElement(["Cardiology", "General Medicine", "Orthopedics"]),
-      status: faker.helpers.arrayElement(["Completed", "Scheduled", "Cancelled"]),
-    })),
-    labResults: Array.from({ length: faker.number.int({ min: 0, max: 3 }) }).map(() => ({
-      id: faker.string.uuid(),
-      testName: faker.helpers.arrayElement(["Complete Blood Count", "Lipid Panel", "Metabolic Panel", "Thyroid Panel", "HbA1c"]),
-      date: faker.date.recent({ days: 60 }).toISOString().slice(0, 10),
-      status: faker.helpers.arrayElement(["Normal", "Abnormal", "Critical"]),
-    })),
+const formatSlotTime = (iso) => {
+  if (!iso) return '';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
+
+const buildSlotsFromDoctors = (list = []) => {
+  const withSlots = list.find((doc) =>
+    Array.isArray(doc.slots) && doc.slots.some((slot) => Array.isArray(slot.times) && slot.times.length)
+  );
+  if (!withSlots) return [];
+  const day = withSlots.slots.find((slot) => Array.isArray(slot.times) && slot.times.length);
+  if (!day) return [];
+
+  return day.times.slice(0, 8).map((time) => ({
+    id: `${withSlots.id}-${time}`,
+    time: formatSlotTime(time),
+    iso: time,
+    free: true,
+    doctorId: withSlots.id
   }));
-
-const makeAppointments = (n = 30) =>
-  Array.from({ length: n }).map((_, i) => ({
-    id: `APT-${2000 + i}`,
-    patientId: `P-${1000 + faker.number.int({ min: 0, max: 49 })}`,
-    patientName: faker.person.fullName(),
-    doctorId: faker.number.int({ min: 1, max: 24 }),
-    doctorName: faker.person.fullName(),
-    specialty: faker.helpers.arrayElement(["Cardiology", "Radiology", "Pediatrics", "Orthopedics", "Neurology"]),
-    date: faker.date.soon({ days: 14 }).toISOString().slice(0, 10),
-    time: faker.helpers.arrayElement(["9:00 AM", "10:00 AM", "11:00 AM", "2:00 PM", "3:00 PM", "4:00 PM"]),
-    type: faker.helpers.arrayElement(["In-Person", "Telemedicine", "Follow-up", "Initial Consultation"]),
-    status: faker.helpers.arrayElement(["Scheduled", "Confirmed", "Completed", "Cancelled", "No-Show"]),
-    reason: faker.lorem.sentence(4),
-    notes: faker.lorem.paragraph(1),
-    priority: faker.helpers.arrayElement(["Normal", "Urgent", "Emergency"]),
-    estimatedDuration: faker.helpers.arrayElement([15, 30, 45, 60]),
-    createdAt: faker.date.recent({ days: 7 }).toISOString(),
-  }));
-
-const makeLabResults = (n = 20) =>
-  Array.from({ length: n }).map((_, i) => ({
-    id: `LAB-${3000 + i}`,
-    patientId: `P-${1000 + faker.number.int({ min: 0, max: 49 })}`,
-    patientName: faker.person.fullName(),
-    testName: faker.helpers.arrayElement([
-      "Complete Blood Count", "Lipid Panel", "Metabolic Panel", "Thyroid Panel",
-      "HbA1c", "Liver Function Test", "Kidney Function Test", "Urinalysis",
-      "Blood Glucose", "Vitamin D", "Iron Panel", "Coagulation Panel"
-    ]),
-    category: faker.helpers.arrayElement(["Blood Test", "Urine Test", "Imaging", "Biopsy"]),
-    orderedBy: faker.person.fullName(),
-    orderedDate: faker.date.recent({ days: 7 }).toISOString().slice(0, 10),
-    completedDate: faker.date.recent({ days: 3 }).toISOString().slice(0, 10),
-    status: faker.helpers.arrayElement(["Pending", "In Progress", "Completed", "Reviewed"]),
-    priority: faker.helpers.arrayElement(["Routine", "Urgent", "STAT"]),
-    results: Array.from({ length: faker.number.int({ min: 3, max: 8 }) }).map(() => ({
-      parameter: faker.helpers.arrayElement(["Hemoglobin", "WBC", "RBC", "Platelets", "Glucose", "Cholesterol", "Triglycerides", "Creatinine"]),
-      value: faker.number.float({ min: 0.5, max: 300, fractionDigits: 2 }),
-      unit: faker.helpers.arrayElement(["mg/dL", "g/dL", "mmol/L", "cells/mcL", "IU/L"]),
-      referenceRange: "Normal: 70-100",
-      status: faker.helpers.arrayElement(["Normal", "Low", "High", "Critical"]),
-    })),
-    notes: faker.lorem.sentence(6),
-  }));
-
-const makeMedications = (n = 30) =>
-  Array.from({ length: n }).map((_, i) => ({
-    id: `MED-${4000 + i}`,
-    name: faker.helpers.arrayElement([
-      "Metformin", "Lisinopril", "Amlodipine", "Omeprazole", "Aspirin",
-      "Atorvastatin", "Metoprolol", "Losartan", "Gabapentin", "Hydrochlorothiazide",
-      "Levothyroxine", "Simvastatin", "Pantoprazole", "Furosemide", "Clopidogrel"
-    ]),
-    genericName: faker.lorem.word(),
-    category: faker.helpers.arrayElement(["Cardiovascular", "Diabetes", "Pain Relief", "Antibiotics", "Vitamins", "Mental Health"]),
-    dosage: faker.helpers.arrayElement(["10mg", "20mg", "50mg", "100mg", "250mg", "500mg"]),
-    form: faker.helpers.arrayElement(["Tablet", "Capsule", "Liquid", "Injection", "Cream", "Inhaler"]),
-    manufacturer: faker.company.name(),
-    price: faker.number.int({ min: 50, max: 5000 }),
-    inStock: faker.number.int({ min: 0, max: 1000 }),
-    reorderLevel: faker.number.int({ min: 50, max: 200 }),
-    expiryDate: faker.date.future({ years: 2 }).toISOString().slice(0, 10),
-    requiresPrescription: faker.datatype.boolean(),
-    sideEffects: faker.helpers.arrayElements(["Nausea", "Dizziness", "Headache", "Fatigue", "Dry mouth", "Constipation"], faker.number.int({ min: 1, max: 3 })),
-    contraindications: faker.helpers.arrayElements(["Pregnancy", "Kidney disease", "Liver disease", "Heart failure"], faker.number.int({ min: 0, max: 2 })),
-  }));
-
-const makeEquipment = (n = 25) =>
-  Array.from({ length: n }).map((_, i) => ({
-    id: `EQ-${5000 + i}`,
-    name: faker.helpers.arrayElement([
-      "MRI Scanner", "CT Scanner", "X-Ray Machine", "Ultrasound", "ECG Machine",
-      "Ventilator", "Defibrillator", "Patient Monitor", "Infusion Pump", "Surgical Robot",
-      "Dialysis Machine", "Endoscope", "Mammography Unit", "Blood Analyzer", "Centrifuge"
-    ]),
-    category: faker.helpers.arrayElement(["Imaging", "Diagnostic", "Therapeutic", "Surgical", "Monitoring", "Laboratory"]),
-    manufacturer: faker.company.name(),
-    model: faker.string.alphanumeric(8).toUpperCase(),
-    serialNumber: faker.string.alphanumeric(12).toUpperCase(),
-    location: faker.helpers.arrayElement(["Radiology Dept", "ICU", "Emergency", "OT-1", "OT-2", "Lab", "Cardiology Wing"]),
-    status: faker.helpers.arrayElement(["Operational", "Under Maintenance", "Out of Order", "Reserved"]),
-    purchaseDate: faker.date.past({ years: 5 }).toISOString().slice(0, 10),
-    warrantyExpiry: faker.date.future({ years: 2 }).toISOString().slice(0, 10),
-    lastMaintenance: faker.date.recent({ days: 60 }).toISOString().slice(0, 10),
-    nextMaintenance: faker.date.soon({ days: 60 }).toISOString().slice(0, 10),
-    usageHours: faker.number.int({ min: 100, max: 10000 }),
-    costPerUse: faker.number.int({ min: 100, max: 10000 }),
-  }));
-
-const makeRooms = (n = 40) =>
-  Array.from({ length: n }).map((_, i) => ({
-    id: `ROOM-${100 + i}`,
-    number: `${faker.number.int({ min: 1, max: 5 })}${String(i + 1).padStart(2, '0')}`,
-    floor: faker.number.int({ min: 1, max: 5 }),
-    wing: faker.helpers.arrayElement(["North", "South", "East", "West"]),
-    type: faker.helpers.arrayElement(["Private", "Semi-Private", "General Ward", "ICU", "NICU", "CCU", "Isolation", "Emergency"]),
-    beds: faker.number.int({ min: 1, max: 6 }),
-    occupiedBeds: faker.number.int({ min: 0, max: 4 }),
-    status: faker.helpers.arrayElement(["Available", "Occupied", "Maintenance", "Reserved", "Cleaning"]),
-    amenities: faker.helpers.arrayElements(["TV", "AC", "WiFi", "Bathroom", "Nurse Call", "Oxygen", "Suction"], faker.number.int({ min: 2, max: 6 })),
-    ratePerDay: faker.number.int({ min: 2000, max: 50000 }),
-    currentPatients: [],
-    assignedNurse: faker.person.fullName(),
-    lastCleaned: faker.date.recent({ days: 1 }).toISOString(),
-    equipment: faker.helpers.arrayElements(["Patient Monitor", "Infusion Pump", "Ventilator", "ECG"], faker.number.int({ min: 1, max: 3 })),
-  }));
-
-const makeStaff = (n = 50) =>
-  Array.from({ length: n }).map((_, i) => ({
-    id: `STF-${6000 + i}`,
-    name: faker.person.fullName(),
-    role: faker.helpers.arrayElement(["Nurse", "Technician", "Receptionist", "Administrator", "Pharmacist", "Lab Technician", "Radiographer", "Paramedic"]),
-    department: faker.helpers.arrayElement(["Emergency", "ICU", "OPD", "Surgery", "Pediatrics", "Cardiology", "Administration", "Pharmacy", "Lab"]),
-    email: faker.internet.email(),
-    phone: faker.phone.number(),
-    avatar: `https://i.pravatar.cc/100?img=${(i % 70) + 1}`,
-    shift: faker.helpers.arrayElement(["Morning", "Evening", "Night", "Rotating"]),
-    status: faker.helpers.arrayElement(["On Duty", "Off Duty", "On Leave", "Training"]),
-    hireDate: faker.date.past({ years: 10 }).toISOString().slice(0, 10),
-    certifications: faker.helpers.arrayElements(["BLS", "ACLS", "PALS", "CPR", "First Aid"], faker.number.int({ min: 1, max: 4 })),
-    performance: {
-      rating: faker.number.float({ min: 3, max: 5, fractionDigits: 1 }),
-      attendance: faker.number.int({ min: 85, max: 100 }),
-      tasksCompleted: faker.number.int({ min: 50, max: 500 }),
-    },
-  }));
-
-const makeArticles = (n = 12) =>
-  Array.from({ length: n }).map((_, i) => ({
-    id: `ART-${i}`,
-    title: faker.lorem.sentence(6),
-    excerpt: faker.lorem.sentences(2),
-    content: faker.lorem.paragraphs(5),
-    author: faker.person.fullName(),
-    authorRole: faker.helpers.arrayElement(["Cardiologist", "Nutritionist", "Pediatrician", "Psychologist", "General Physician"]),
-    authorAvatar: `https://i.pravatar.cc/50?img=${(i % 70) + 1}`,
-    readMinutes: faker.number.int({ min: 2, max: 15 }),
-    category: faker.helpers.arrayElement(["Heart Health", "Nutrition", "Mental Health", "Fitness", "Pediatrics", "Women's Health", "Senior Care"]),
-    tags: faker.helpers.arrayElements(["wellness", "prevention", "lifestyle", "treatment", "research"], faker.number.int({ min: 2, max: 4 })),
-    publishDate: faker.date.recent({ days: 30 }).toISOString().slice(0, 10),
-    views: faker.number.int({ min: 100, max: 10000 }),
-    likes: faker.number.int({ min: 10, max: 500 }),
-    comments: faker.number.int({ min: 0, max: 50 }),
-    image: `https://picsum.photos/800/400?random=${i}`,
-  }));
-
-const makeTestimonials = (n = 10) =>
-  Array.from({ length: n }).map((_, i) => ({
-    id: `T-${i}`,
-    name: faker.person.fullName(),
-    avatar: `https://i.pravatar.cc/80?img=${(i % 70) + 1}`,
-    quote: faker.lorem.sentences(3),
-    rating: faker.number.int({ min: 4, max: 5 }),
-    treatment: faker.helpers.arrayElement(["Heart Surgery", "Joint Replacement", "Cancer Treatment", "Childbirth", "Emergency Care"]),
-    doctor: faker.person.fullName(),
-    date: faker.date.recent({ days: 180 }).toISOString().slice(0, 10),
-    videoUrl: faker.datatype.boolean() ? "https://example.com/video" : null,
-    verified: faker.datatype.boolean(),
-  }));
-
-const makeInsuranceProviders = () => [
-  { id: 1, name: "SehatCard", logo: "🏥", coverage: "100%", network: "All Hospitals" },
-  { id: 2, name: "PIMA", logo: "🏦", coverage: "80%", network: "Selected Hospitals" },
-  { id: 3, name: "State Life", logo: "🏛️", coverage: "70%", network: "Pan Pakistan" },
-  { id: 4, name: "Jubilee Life", logo: "💼", coverage: "75%", network: "Major Cities" },
-  { id: 5, name: "EFU Health", logo: "🛡️", coverage: "85%", network: "Premium Hospitals" },
-  { id: 6, name: "Adamjee Insurance", logo: "⚕️", coverage: "70%", network: "All Pakistan" },
-];
-
-const makeEmergencyServices = () => [
-  { id: 1, name: "Ambulance", icon: "🚑", available: true, responseTime: "5-10 mins", number: "1122" },
-  { id: 2, name: "Air Ambulance", icon: "🚁", available: true, responseTime: "15-30 mins", number: "021-111-222-333" },
-  { id: 3, name: "Blood Bank", icon: "🩸", available: true, units: 250, types: ["A+", "B+", "O+", "AB+"] },
-  { id: 4, name: "Trauma Center", icon: "🏥", available: true, beds: 15, status: "Operational" },
-  { id: 5, name: "Poison Control", icon: "☠️", available: true, number: "0800-00-786" },
-];
-
-const defaultServices = [
-  { key: "radiology", title: "Radiology", desc: "MRI, CT, Digital X-Ray, Ultrasound, PET Scan", icon: "🔬", color: "blue" },
-  { key: "cardiology", title: "Cardiology", desc: "Consultations, Angioplasty, Bypass, Pacemaker", icon: "❤️", color: "red" },
-  { key: "diagnostics", title: "Diagnostics", desc: "Pathology, Lab Tests, Genetic Testing", icon: "🧪", color: "purple" },
-  { key: "pediatrics", title: "Pediatrics", desc: "Child Care, Vaccination, NICU", icon: "👶", color: "pink" },
-  { key: "telemedicine", title: "Telemedicine", desc: "Remote Consultations, E-Prescriptions", icon: "💻", color: "green" },
-  { key: "orthopedics", title: "Orthopedics", desc: "Joint Replacement, Spine Surgery, Sports Medicine", icon: "🦴", color: "orange" },
-  { key: "neurology", title: "Neurology", desc: "Brain & Spine, Stroke Care, Epilepsy", icon: "🧠", color: "indigo" },
-  { key: "oncology", title: "Oncology", desc: "Cancer Treatment, Chemotherapy, Radiation", icon: "🎗️", color: "yellow" },
-  { key: "emergency", title: "Emergency", desc: "24/7 Trauma Care, Critical Care", icon: "🚨", color: "red" },
-  { key: "pharmacy", title: "Pharmacy", desc: "24/7 Pharmacy, Home Delivery", icon: "💊", color: "teal" },
-  { key: "mentalhealth", title: "Mental Health", desc: "Psychiatry, Psychology, Counseling", icon: "🧘", color: "cyan" },
-  { key: "rehabilitation", title: "Rehabilitation", desc: "Physical Therapy, Occupational Therapy", icon: "🏃", color: "lime" },
-];
-
-const makeWellnessPrograms = () => [
-  { id: 1, name: "Heart Health Program", description: "12-week cardiovascular wellness", points: 500, enrolled: 234, icon: "❤️" },
-  { id: 2, name: "Diabetes Management", description: "Blood sugar control & lifestyle", points: 400, enrolled: 189, icon: "🩺" },
-  { id: 3, name: "Mental Wellness", description: "Mindfulness & stress management", points: 300, enrolled: 312, icon: "🧘" },
-  { id: 4, name: "Weight Management", description: "Nutrition & exercise program", points: 350, enrolled: 278, icon: "⚖️" },
-  { id: 5, name: "Smoking Cessation", description: "Quit smoking support", points: 450, enrolled: 156, icon: "🚭" },
-  { id: 6, name: "Sleep Better", description: "Sleep hygiene improvement", points: 250, enrolled: 201, icon: "😴" },
-];
-
-const makeChallenges = () => [
-  { id: 1, name: "10K Steps Challenge", description: "Walk 10,000 steps daily", points: 50, participants: 1234, daysLeft: 7, icon: "👟" },
-  { id: 2, name: "Hydration Hero", description: "Drink 8 glasses of water daily", points: 30, participants: 890, daysLeft: 14, icon: "💧" },
-  { id: 3, name: "Meditation Month", description: "Meditate 10 mins daily", points: 100, participants: 567, daysLeft: 21, icon: "🧘‍♀️" },
-  { id: 4, name: "Healthy Eating", description: "Log healthy meals for 30 days", points: 150, participants: 432, daysLeft: 28, icon: "🥗" },
-];
-
-const makeLeaderboard = () =>
-  Array.from({ length: 10 }).map((_, i) => ({
-    rank: i + 1,
-    name: faker.person.fullName(),
-    avatar: `https://i.pravatar.cc/40?img=${(i % 70) + 1}`,
-    points: faker.number.int({ min: 5000, max: 50000 }) - i * 1000,
-    badges: faker.number.int({ min: 5, max: 25 }),
-    streak: faker.number.int({ min: 1, max: 100 }),
-  }));
-
-const makeResearchStudies = () => [
-  { id: 1, title: "Cardiovascular Disease Prevention Trial", status: "Recruiting", participants: 150, target: 500, compensation: 5000 },
-  { id: 2, title: "Diabetes Type 2 New Treatment Study", status: "Active", participants: 300, target: 400, compensation: 3000 },
-  { id: 3, title: "Mental Health App Effectiveness", status: "Recruiting", participants: 80, target: 200, compensation: 1000 },
-  { id: 4, title: "Pediatric Vaccine Safety Study", status: "Completed", participants: 1000, target: 1000, compensation: 2000 },
-];
+};
 
 // ==================== UTILITY FUNCTIONS ====================
 
@@ -704,6 +428,20 @@ const ttsSpeak = (text, lang = 'en-US') => {
   window.speechSynthesis.cancel();
   window.speechSynthesis.speak(u);
 };
+
+const defaultServices = [
+  { key: "cardiology", title: "Cardiology", desc: "Consultations, Angioplasty, Bypass, Pacemaker", icon: "❤️", color: "red" },
+  { key: "diagnostics", title: "Diagnostics", desc: "Pathology, Lab Tests, Genetic Testing", icon: "🧪", color: "purple" },
+  { key: "pediatrics", title: "Pediatrics", desc: "Child Care, Vaccination, NICU", icon: "👶", color: "pink" },
+  { key: "telemedicine", title: "Telemedicine", desc: "Remote Consultations, E-Prescriptions", icon: "💻", color: "green" },
+  { key: "orthopedics", title: "Orthopedics", desc: "Joint Replacement, Spine Surgery, Sports Medicine", icon: "🦴", color: "orange" },
+  { key: "neurology", title: "Neurology", desc: "Brain & Spine, Stroke Care, Epilepsy", icon: "🧠", color: "indigo" },
+  { key: "oncology", title: "Oncology", desc: "Cancer Treatment, Chemotherapy, Radiation", icon: "🎗️", color: "yellow" },
+  { key: "emergency", title: "Emergency", desc: "24/7 Trauma Care, Critical Care", icon: "🚨", color: "red" },
+  { key: "pharmacy", title: "Pharmacy", desc: "24/7 Pharmacy, Home Delivery", icon: "💊", color: "teal" },
+  { key: "mentalhealth", title: "Mental Health", desc: "Psychiatry, Psychology, Counseling", icon: "🧘", color: "cyan" },
+  { key: "rehabilitation", title: "Rehabilitation", desc: "Physical Therapy, Occupational Therapy", icon: "🏃", color: "lime" },
+];
 
 // Natural language booking parser
 function parseNaturalBooking(text = "") {
@@ -785,7 +523,7 @@ const calculateBMI = (weight, height) => {
 // Badge Component
 const Badge = ({ children, variant = "default", size = "sm" }) => {
   const variants = {
-    default: "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200",
+    default: "bg-charcoal-900/60 text-white text-white/70",
     success: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
     warning: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
     danger: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
@@ -815,14 +553,21 @@ const Avatar = ({ src, alt, size = "md", status = null }) => {
     xl: "w-20 h-20",
   };
   const statusColors = {
-    online: "bg-green-500",
-    offline: "bg-gray-400",
-    busy: "bg-red-500",
-    away: "bg-yellow-500",
+    online: "bg-primary-500/40",
+    offline: "bg-charcoal-900/80",
+    busy: "bg-red-500/40",
+    away: "bg-accent-400/150",
   };
+  const safeSrc = src && typeof src === "string" && src.trim().length > 0 ? src : null;
   return (
     <div className="relative inline-block">
-      <img src={src} alt={alt} className={`${sizes[size]} rounded-full object-cover ring-2 ring-white dark:ring-gray-800`} />
+      {safeSrc ? (
+        <img src={safeSrc} alt={alt} className={`${sizes[size]} rounded-full object-cover ring-2 ring-white ring-white/20`} />
+      ) : (
+        <div className={`${sizes[size]} rounded-full bg-charcoal-900/70 ring-2 ring-white/20 flex items-center justify-center text-white/70 text-xs`}>
+          {alt?.[0]?.toUpperCase() || "U"}
+        </div>
+      )}
       {status && (
         <span className={`absolute bottom-0 right-0 block h-3 w-3 rounded-full ring-2 ring-white ${statusColors[status]}`} />
       )}
@@ -833,9 +578,9 @@ const Avatar = ({ src, alt, size = "md", status = null }) => {
 // Skeleton Component
 const Skeleton = ({ className = "h-6 w-full", variant = "default" }) => {
   const variants = {
-    default: "bg-gray-200 dark:bg-gray-700",
-    circle: "bg-gray-200 dark:bg-gray-700 rounded-full",
-    text: "bg-gray-200 dark:bg-gray-700 rounded",
+    default: "bg-charcoal-900/70 bg-charcoal-900/70",
+    circle: "bg-charcoal-900/70 bg-charcoal-900/70 rounded-full",
+    text: "bg-charcoal-900/70 bg-charcoal-900/70 rounded",
   };
   return <div className={`animate-pulse rounded ${variants[variant]} ${className}`} />;
 };
@@ -844,7 +589,7 @@ const Skeleton = ({ className = "h-6 w-full", variant = "default" }) => {
 const Card = ({ children, className = "", hover = false, onClick = null }) => {
   return (
     <div 
-      className={`bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 ${hover ? 'hover:shadow-lg transition-shadow cursor-pointer' : ''} ${className}`}
+      className={`rounded-2xl bg-charcoal-900/70 border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.45)] ${hover ? 'hover:shadow-[0_24px_70px_rgba(0,0,0,0.55)] transition-shadow cursor-pointer' : ''} ${className}`}
       onClick={onClick}
     >
       {children}
@@ -855,11 +600,11 @@ const Card = ({ children, className = "", hover = false, onClick = null }) => {
 // Button Component
 const Button = ({ children, variant = "primary", size = "md", disabled = false, loading = false, icon = null, onClick, className = "", ...props }) => {
   const variants = {
-    primary: "bg-green-600 hover:bg-green-700 text-white",
-    secondary: "bg-gray-100 hover:bg-gray-200 text-gray-800 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-200",
-    outline: "border-2 border-green-600 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20",
-    danger: "bg-red-600 hover:bg-red-700 text-white",
-    ghost: "hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300",
+    primary: "bg-gradient-to-r from-primary-900 via-primary-800 to-primary-700 text-luxury-gold border border-primary-700/60 shadow-lg shadow-primary-900/30 hover:from-primary-800 hover:to-primary-600 relative overflow-hidden before:absolute before:inset-0 before:bg-gradient-to-r before:from-transparent before:via-white/15 before:to-transparent before:translate-x-[-100%] hover:before:translate-x-[100%] before:transition-transform before:duration-700",
+    secondary: "bg-charcoal-900/80 text-accent-200 border border-accent-300/30 shadow-lg hover:bg-charcoal-900/90 relative overflow-hidden",
+    outline: "border-2 border-accent-300/40 text-accent-100 hover:bg-charcoal-900/70 relative overflow-hidden",
+    danger: "bg-gradient-to-r from-accent-700 to-accent-600 text-white border border-accent-700/60 shadow-lg shadow-accent-900/30 hover:from-accent-600 hover:to-accent-500 relative overflow-hidden before:absolute before:inset-0 before:bg-gradient-to-r before:from-transparent before:via-white/20 before:to-transparent before:translate-x-[-100%] hover:before:translate-x-[100%] before:transition-transform before:duration-700",
+    ghost: "hover:bg-charcoal-900/60 text-white/80 relative overflow-hidden",
   };
   const sizes = {
     xs: "px-2 py-1 text-xs",
@@ -870,7 +615,7 @@ const Button = ({ children, variant = "primary", size = "md", disabled = false, 
   };
   return (
     <button
-      className={`inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${variants[variant]} ${sizes[size]} ${className}`}
+      className={`inline-flex items-center justify-center gap-2 rounded-xl font-medium transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl hover:scale-105 ${variants[variant]} ${sizes[size]} ${className}`}
       disabled={disabled || loading}
       onClick={onClick}
       {...props}
@@ -886,11 +631,11 @@ const Button = ({ children, variant = "primary", size = "md", disabled = false, 
 const Input = ({ label, error, icon, className = "", ...props }) => {
   return (
     <div className={className}>
-      {label && <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{label}</label>}
+      {label && <label className="block text-sm font-medium lux-muted mb-1">{label}</label>}
       <div className="relative">
-        {icon && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">{icon}</span>}
+        {icon && <span className="absolute left-3 top-1/2 -translate-y-1/2 lux-muted">{icon}</span>}
         <input
-          className={`w-full px-4 py-2 ${icon ? 'pl-10' : ''} rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition ${error ? 'border-red-500' : ''}`}
+          className={`w-full px-4 py-2 ${icon ? 'pl-10' : ''} rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-foreground)] focus:ring-2 focus:ring-[var(--color-ring)] focus:border-transparent outline-none transition ${error ? 'border-red-500' : ''}`}
           {...props}
         />
       </div>
@@ -915,10 +660,10 @@ const Modal = ({ isOpen, onClose, title, children, size = "md" }) => {
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
       <div className="flex min-h-full items-center justify-center p-4">
-        <div className={`relative bg-white dark:bg-gray-800 rounded-2xl shadow-xl ${sizes[size]} w-full`}>
-          <div className="flex items-center justify-between p-4 border-b dark:border-gray-700">
+        <div className={`relative bg-charcoal-950 rounded-2xl shadow-xl ${sizes[size]} w-full`}>
+          <div className="flex items-center justify-between p-4 border-b border-white/10">
             <h3 className="text-lg font-semibold">{title}</h3>
-            <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+            <button onClick={onClose} className="p-1 rounded-lg hover:bg-charcoal-900/60 dark:hover:bg-charcoal-900/70">
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -932,15 +677,15 @@ const Modal = ({ isOpen, onClose, title, children, size = "md" }) => {
 // Tabs Component
 const Tabs = ({ tabs, activeTab, onChange }) => {
   return (
-    <div className="flex gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-lg">
+    <div className="flex gap-1 p-1 bg-charcoal-900/60 rounded-lg">
       {tabs.map((tab) => (
         <button
           key={tab.id}
           onClick={() => onChange(tab.id)}
           className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
             activeTab === tab.id
-              ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow'
-              : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              ? 'bg-charcoal-900/70 text-white dark:text-white shadow'
+              : 'text-white/70 dark:text-white/50 hover:text-white dark:hover:text-white'
           }`}
         >
           {tab.label}
@@ -954,18 +699,18 @@ const Tabs = ({ tabs, activeTab, onChange }) => {
 const ProgressBar = ({ value, max = 100, color = "green", showLabel = false }) => {
   const percentage = Math.min((value / max) * 100, 100);
   const colors = {
-    green: "bg-green-500",
-    blue: "bg-blue-500",
-    red: "bg-red-500",
-    yellow: "bg-yellow-500",
-    purple: "bg-purple-500",
+    green: "bg-primary-500/40",
+    blue: "bg-primary-400/150",
+    red: "bg-red-500/40",
+    yellow: "bg-accent-400/150",
+    purple: "bg-accent-400/120",
   };
   return (
     <div className="w-full">
-      <div className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+      <div className="w-full h-2 bg-charcoal-900/70 bg-charcoal-900/70 rounded-full overflow-hidden">
         <div className={`h-full ${colors[color]} transition-all duration-300`} style={{ width: `${percentage}%` }} />
       </div>
-      {showLabel && <span className="text-xs text-gray-500 mt-1">{percentage.toFixed(0)}%</span>}
+      {showLabel && <span className="text-xs text-white/60 mt-1">{percentage.toFixed(0)}%</span>}
     </div>
   );
 };
@@ -977,9 +722,9 @@ const Tooltip = ({ children, content }) => {
     <div className="relative inline-block" onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}>
       {children}
       {show && (
-        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-900 rounded whitespace-nowrap z-50">
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-charcoal-950 rounded whitespace-nowrap z-50">
           {content}
-          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-charcoal-950" />
         </div>
       )}
     </div>
@@ -993,8 +738,10 @@ const MiniSpark = ({ data = [], color = "#10B981", height = 50 }) => {
   const max = Math.max(...data);
   const min = Math.min(...data);
   const range = max - min || 1;
-  const points = data.map((v, i) => {
-    const x = (i / (data.length - 1)) * w;
+  const pointCount = Math.max(2, data.length);
+  const safeData = data.length === 1 ? [data[0], data[0]] : data;
+  const points = safeData.map((v, i) => {
+    const x = (i / (pointCount - 1)) * w;
     const y = height - ((v - min) / range) * height;
     return `${x},${y}`;
   }).join(" ");
@@ -1017,9 +764,11 @@ const MiniSpark = ({ data = [], color = "#10B981", height = 50 }) => {
 
 // Donut Chart
 const DonutChart = ({ value, max = 100, size = 80, strokeWidth = 8, color = "#10B981" }) => {
+  const safeMax = Number(max) > 0 ? Number(max) : 100;
+  const safeValue = Number.isFinite(Number(value)) ? Number(value) : 0;
   const radius = (size - strokeWidth) / 2;
   const circumference = radius * 2 * Math.PI;
-  const percentage = (value / max) * 100;
+  const percentage = Math.max(0, Math.min(100, (safeValue / safeMax) * 100));
   const offset = circumference - (percentage / 100) * circumference;
   
   return (
@@ -1032,7 +781,7 @@ const DonutChart = ({ value, max = 100, size = 80, strokeWidth = 8, color = "#10
           stroke="currentColor"
           strokeWidth={strokeWidth}
           fill="none"
-          className="text-gray-200 dark:text-gray-700"
+          className="text-white/70 text-white/30"
         />
         <circle
           cx={size / 2}
@@ -1056,7 +805,7 @@ const DonutChart = ({ value, max = 100, size = 80, strokeWidth = 8, color = "#10
 const StatCard = ({ title, value, change, icon, color = "green", trend = "up" }) => {
   const colors = {
     green: "from-green-500 to-green-600",
-    blue: "from-blue-500 to-blue-600",
+    blue: "from-blue-500 to-primary-700",
     red: "from-red-500 to-red-600",
     yellow: "from-yellow-500 to-yellow-600",
     purple: "from-purple-500 to-purple-600",
@@ -1065,7 +814,7 @@ const StatCard = ({ title, value, change, icon, color = "green", trend = "up" })
     <Card className="p-4">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm text-gray-500 dark:text-gray-400">{title}</p>
+          <p className="text-sm text-white/60">{title}</p>
           <p className="text-2xl font-bold mt-1">{value}</p>
           {change && (
             <p className={`text-sm mt-1 flex items-center gap-1 ${trend === 'up' ? 'text-green-500' : 'text-red-500'}`}>
@@ -1084,7 +833,7 @@ const StatCard = ({ title, value, change, icon, color = "green", trend = "up" })
 
 // Doctor Card
 // Doctor Card
-const DoctorCard = ({ doctor, onBook, onViewProfile, compact = false }) => {
+const DoctorCard = ({ doctor, onBook, onViewProfile, onFavorite, compact = false }) => {
   if (compact) {
     return (
       <Card hover className="p-3">
@@ -1092,7 +841,7 @@ const DoctorCard = ({ doctor, onBook, onViewProfile, compact = false }) => {
           <Avatar src={doctor.avatar} alt={doctor.name} size="md" status="online" />
           <div className="flex-1 min-w-0">
             <p className="font-medium truncate">{doctor.name}</p>
-            <p className="text-xs text-gray-500 truncate">{doctor.specialty}</p>
+            <p className="text-xs text-white/60 truncate">{doctor.specialty}</p>
           </div>
           <Button size="xs" onClick={() => onBook(doctor)}>Book</Button>
         </div>
@@ -1103,7 +852,7 @@ const DoctorCard = ({ doctor, onBook, onViewProfile, compact = false }) => {
   return (
     <Card hover className="overflow-hidden">
       <div className="relative">
-        <div className="h-20 bg-gradient-to-r from-green-500 to-blue-500" />
+        <div className="h-20 bg-gradient-to-r from-primary-900 to-primary-700" />
         <Avatar src={doctor.avatar} alt={doctor.name} size="xl" className="absolute -bottom-10 left-4 border-4 border-white" />
         {doctor.telemedicineAvailable && (
           <Badge variant="success" className="absolute top-2 right-2">
@@ -1115,12 +864,12 @@ const DoctorCard = ({ doctor, onBook, onViewProfile, compact = false }) => {
         <div className="flex items-start justify-between">
           <div>
             <h3 className="font-semibold text-lg">{doctor.name}</h3>
-            <p className="text-sm text-gray-500">{doctor.title}</p>
+            <p className="text-sm text-white/60">{doctor.title}</p>
           </div>
           <div className="flex items-center gap-1 text-yellow-500">
             <Star className="w-4 h-4 fill-current" />
             <span className="font-medium">{doctor.rating}</span>
-            <span className="text-xs text-gray-400">({doctor.reviewCount})</span>
+            <span className="text-xs text-white/50">({doctor.reviewCount})</span>
           </div>
         </div>
 
@@ -1129,7 +878,7 @@ const DoctorCard = ({ doctor, onBook, onViewProfile, compact = false }) => {
           <Badge>{doctor.years} yrs exp</Badge>
         </div>
 
-        <div className="mt-3 text-sm text-gray-600 dark:text-gray-400">
+        <div className="mt-3 text-sm text-white/70 dark:text-white/50">
           <div className="flex items-center gap-2">
             <MapPin className="w-4 h-4" />
             <span>{doctor.hospital}</span>
@@ -1146,7 +895,7 @@ const DoctorCard = ({ doctor, onBook, onViewProfile, compact = false }) => {
 
         <div className="mt-3 flex flex-wrap gap-1">
           {doctor.languages.slice(0, 3).map((lang, i) => (
-            <span key={i} className="text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-700 rounded">{lang}</span>
+            <span key={i} className="text-xs px-2 py-0.5 bg-charcoal-900/70 rounded">{lang}</span>
           ))}
         </div>
 
@@ -1157,7 +906,7 @@ const DoctorCard = ({ doctor, onBook, onViewProfile, compact = false }) => {
           <Button variant="outline" onClick={() => onViewProfile(doctor)}>
             <User className="w-4 h-4" />
           </Button>
-          <Button variant="ghost" onClick={() => toast.success('Added to favorites')}>
+          <Button variant="ghost" onClick={() => onFavorite(doctor)}>
             <Heart className="w-4 h-4" />
           </Button>
         </div>
@@ -1185,25 +934,25 @@ const AppointmentCard = ({ appointment, onCancel, onReschedule, onJoin }) => {
           </div>
           <div>
             <h4 className="font-medium">{appointment.doctorName}</h4>
-            <p className="text-sm text-gray-500">{appointment.specialty}</p>
+            <p className="text-sm text-white/60">{appointment.specialty}</p>
           </div>
         </div>
         <Badge variant={statusColors[appointment.status]}>{appointment.status}</Badge>
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-        <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+        <div className="flex items-center gap-2 text-white/70 dark:text-white/50">
           <Calendar className="w-4 h-4" />
           <span>{appointment.date}</span>
         </div>
-        <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+        <div className="flex items-center gap-2 text-white/70 dark:text-white/50">
           <Clock className="w-4 h-4" />
           <span>{appointment.time}</span>
         </div>
       </div>
 
       {appointment.reason && (
-        <p className="mt-2 text-sm text-gray-500 line-clamp-2">{appointment.reason}</p>
+        <p className="mt-2 text-sm text-white/60 line-clamp-2">{appointment.reason}</p>
       )}
 
       {appointment.priority === 'Urgent' && (
@@ -1247,12 +996,12 @@ const LabResultCard = ({ result }) => {
       <div className="flex items-start justify-between">
         <div>
           <h4 className="font-medium">{result.testName}</h4>
-          <p className="text-sm text-gray-500">{result.category}</p>
+          <p className="text-sm text-white/60">{result.category}</p>
         </div>
         <Badge variant={statusColors[result.status]}>{result.status}</Badge>
       </div>
 
-      <div className="mt-3 text-sm text-gray-600 dark:text-gray-400">
+      <div className="mt-3 text-sm text-white/70 dark:text-white/50">
         <div className="flex items-center gap-2">
           <Calendar className="w-4 h-4" />
           <span>Ordered: {result.orderedDate}</span>
@@ -1303,7 +1052,7 @@ const MedicationCard = ({ medication, onRefill }) => {
           </div>
           <div>
             <h4 className="font-medium">{medication.name}</h4>
-            <p className="text-sm text-gray-500">{medication.dosage} - {medication.form}</p>
+            <p className="text-sm text-white/60">{medication.dosage} - {medication.form}</p>
           </div>
         </div>
         {medication.requiresPrescription && (
@@ -1312,7 +1061,7 @@ const MedicationCard = ({ medication, onRefill }) => {
       </div>
 
       <div className="mt-3 text-sm">
-        <p className="text-gray-600 dark:text-gray-400">{medication.category}</p>
+        <p className="text-white/70 dark:text-white/50">{medication.category}</p>
         <p className="font-medium mt-1">{formatCurrency(medication.price)}</p>
       </div>
 
@@ -1349,7 +1098,7 @@ const RoomCard = ({ room }) => {
           </div>
           <div>
             <h4 className="font-medium">Room {room.number}</h4>
-            <p className="text-sm text-gray-500">{room.type} - {room.wing} Wing</p>
+            <p className="text-sm text-white/60">{room.type} - {room.wing} Wing</p>
           </div>
         </div>
         <Badge variant={statusColors[room.status]}>{room.status}</Badge>
@@ -1357,23 +1106,23 @@ const RoomCard = ({ room }) => {
 
       <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
         <div>
-          <span className="text-gray-500">Beds:</span>
+          <span className="text-white/60">Beds:</span>
           <span className="ml-1 font-medium">{room.occupiedBeds}/{room.beds}</span>
         </div>
         <div>
-          <span className="text-gray-500">Floor:</span>
+          <span className="text-white/60">Floor:</span>
           <span className="ml-1 font-medium">{room.floor}</span>
         </div>
       </div>
 
       <div className="mt-2 flex flex-wrap gap-1">
         {room.amenities.slice(0, 4).map((amenity, i) => (
-          <span key={i} className="text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-700 rounded">{amenity}</span>
+          <span key={i} className="text-xs px-2 py-0.5 bg-charcoal-900/70 rounded">{amenity}</span>
         ))}
       </div>
 
       <div className="mt-3 text-sm">
-        <span className="text-gray-500">Rate:</span>
+        <span className="text-white/60">Rate:</span>
         <span className="ml-1 font-medium">{formatCurrency(room.ratePerDay)}/day</span>
       </div>
     </Card>
@@ -1395,12 +1144,12 @@ const StaffCard = ({ staff }) => {
         <Avatar src={staff.avatar} alt={staff.name} size="lg" status={staff.status === 'On Duty' ? 'online' : 'offline'} />
         <div className="flex-1">
           <h4 className="font-medium">{staff.name}</h4>
-          <p className="text-sm text-gray-500">{staff.role}</p>
+          <p className="text-sm text-white/60">{staff.role}</p>
           <Badge variant={statusColors[staff.status]} size="xs" className="mt-1">{staff.status}</Badge>
         </div>
       </div>
 
-      <div className="mt-3 text-sm text-gray-600 dark:text-gray-400">
+      <div className="mt-3 text-sm text-white/70 dark:text-white/50">
         <div className="flex items-center gap-2">
           <Briefcase className="w-4 h-4" />
           <span>{staff.department}</span>
@@ -1413,7 +1162,7 @@ const StaffCard = ({ staff }) => {
 
       <div className="mt-3">
         <div className="flex items-center justify-between text-sm">
-          <span className="text-gray-500">Performance</span>
+          <span className="text-white/60">Performance</span>
           <span className="font-medium">{staff.performance.rating}/5</span>
         </div>
         <ProgressBar value={staff.performance.rating} max={5} color="green" />
@@ -1428,20 +1177,20 @@ const ArticleCard = ({ article, onRead }) => {
     <Card hover className="overflow-hidden">
       <img src={article.image} alt={article.title} className="w-full h-40 object-cover" />
       <div className="p-4">
-        <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
+        <div className="flex items-center gap-2 text-xs text-white/60 mb-2">
           <Badge variant="info" size="xs">{article.category}</Badge>
           <span>•</span>
           <span>{article.readMinutes} min read</span>
         </div>
         <h3 className="font-semibold line-clamp-2">{article.title}</h3>
-        <p className="text-sm text-gray-600 dark:text-gray-400 mt-2 line-clamp-2">{article.excerpt}</p>
+        <p className="text-sm text-white/70 dark:text-white/50 mt-2 line-clamp-2">{article.excerpt}</p>
         
         <div className="mt-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Avatar src={article.authorAvatar} alt={article.author} size="xs" />
-            <span className="text-sm text-gray-500">{article.author}</span>
+            <span className="text-sm text-white/60">{article.author}</span>
           </div>
-          <div className="flex items-center gap-3 text-xs text-gray-400">
+          <div className="flex items-center gap-3 text-xs text-white/50">
             <span className="flex items-center gap-1"><Eye className="w-3 h-3" /> {article.views}</span>
             <span className="flex items-center gap-1"><Heart className="w-3 h-3" /> {article.likes}</span>
           </div>
@@ -1468,21 +1217,26 @@ const TestimonialCard = ({ testimonial }) => {
               <CheckCircle className="w-4 h-4 text-green-500" />
             )}
           </div>
-          <p className="text-sm text-gray-500">{testimonial.treatment}</p>
+          <p className="text-sm text-white/60">{testimonial.treatment}</p>
           <div className="flex items-center gap-1 mt-1">
             {Array.from({ length: 5 }).map((_, i) => (
-              <Star key={i} className={`w-4 h-4 ${i < testimonial.rating ? 'text-yellow-500 fill-current' : 'text-gray-300'}`} />
+              <Star key={i} className={`w-4 h-4 ${i < testimonial.rating ? 'text-yellow-500 fill-current' : 'text-white/30'}`} />
             ))}
           </div>
         </div>
       </div>
-      <p className="mt-3 text-sm text-gray-600 dark:text-gray-400 italic">"{testimonial.quote}"</p>
-      <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
+      <p className="mt-3 text-sm text-white/70 dark:text-white/50 italic">"{testimonial.quote}"</p>
+      <div className="mt-3 flex items-center justify-between text-xs text-white/60">
         <span>Treated by Dr. {testimonial.doctor}</span>
         <span>{testimonial.date}</span>
       </div>
       {testimonial.videoUrl && (
-        <Button variant="ghost" size="sm" className="mt-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="mt-2"
+          onClick={() => window.open(testimonial.videoUrl, '_blank')}
+        >
           <PlayCircle className="w-4 h-4" /> Watch Video
         </Button>
       )}
@@ -1492,13 +1246,21 @@ const TestimonialCard = ({ testimonial }) => {
 
 // Wellness Program Card
 const WellnessProgramCard = ({ program, onEnroll }) => {
+  const iconMap = {
+    heart: '❤️',
+    mind: '🧘',
+    moon: '🌙',
+    leaf: '🥬',
+    shield: '🛡️'
+  };
+  const displayIcon = iconMap[program.icon] || program.icon || '🏥';
   return (
     <Card hover className="p-4">
       <div className="flex items-center gap-3">
-        <div className="text-3xl">{program.icon}</div>
+        <div className="text-3xl">{displayIcon}</div>
         <div className="flex-1">
           <h4 className="font-medium">{program.name}</h4>
-          <p className="text-sm text-gray-500">{program.description}</p>
+          <p className="text-sm text-white/60">{program.description}</p>
         </div>
       </div>
       <div className="mt-3 flex items-center justify-between text-sm">
@@ -1506,10 +1268,16 @@ const WellnessProgramCard = ({ program, onEnroll }) => {
           <Award className="w-4 h-4" />
           <span>{program.points} points</span>
         </div>
-        <span className="text-gray-500">{program.enrolled} enrolled</span>
+        <span className="text-white/60">{program.enrolled} enrolled</span>
       </div>
-      <Button variant="primary" size="sm" className="mt-3 w-full" onClick={() => onEnroll(program)}>
-        Enroll Now
+      <Button
+        variant="primary"
+        size="sm"
+        className="mt-3 w-full"
+        onClick={() => onEnroll(program)}
+        disabled={program.joined}
+      >
+        {program.joined ? 'Enrolled' : 'Enroll Now'}
       </Button>
     </Card>
   );
@@ -1517,31 +1285,39 @@ const WellnessProgramCard = ({ program, onEnroll }) => {
 
 // Challenge Card
 const ChallengeCard = ({ challenge, onJoin }) => {
+  const iconMap = {
+    steps: '👟',
+    water: '💧',
+    sunrise: '🌅',
+    sleep: '🛌',
+    sugar: '🍬'
+  };
+  const displayIcon = iconMap[challenge.icon] || challenge.icon || '⚡';
   return (
     <Card className="p-4 border-2 border-dashed border-green-300 dark:border-green-700">
       <div className="flex items-center gap-3">
-        <div className="text-3xl">{challenge.icon}</div>
+        <div className="text-3xl">{displayIcon}</div>
         <div className="flex-1">
           <h4 className="font-medium">{challenge.name}</h4>
-          <p className="text-sm text-gray-500">{challenge.description}</p>
+          <p className="text-sm text-white/60">{challenge.description}</p>
         </div>
       </div>
       <div className="mt-3 grid grid-cols-3 gap-2 text-center text-sm">
         <div>
           <p className="text-lg font-bold text-green-600">{challenge.points}</p>
-          <p className="text-xs text-gray-500">Points</p>
+          <p className="text-xs text-white/60">Points</p>
         </div>
         <div>
           <p className="text-lg font-bold text-blue-600">{challenge.participants}</p>
-          <p className="text-xs text-gray-500">Participants</p>
+          <p className="text-xs text-white/60">Participants</p>
         </div>
         <div>
           <p className="text-lg font-bold text-orange-600">{challenge.daysLeft}</p>
-          <p className="text-xs text-gray-500">Days Left</p>
+          <p className="text-xs text-white/60">Days Left</p>
         </div>
       </div>
-      <Button variant="outline" size="sm" className="mt-3 w-full" onClick={() => onJoin(challenge)}>
-        <Zap className="w-4 h-4" /> Join Challenge
+      <Button variant="outline" size="sm" className="mt-3 w-full" onClick={() => onJoin(challenge)} disabled={challenge.joined}>
+        <Zap className="w-4 h-4" /> {challenge.joined ? 'Joined' : 'Join Challenge'}
       </Button>
     </Card>
   );
@@ -1558,21 +1334,21 @@ const Leaderboard = ({ data }) => {
         {data.map((entry, i) => (
           <div key={i} className={`flex items-center gap-3 p-2 rounded-lg ${i < 3 ? 'bg-gradient-to-r from-yellow-50 to-transparent dark:from-yellow-900/20' : ''}`}>
             <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${
-              i === 0 ? 'bg-yellow-500 text-white' : 
-              i === 1 ? 'bg-gray-400 text-white' : 
-              i === 2 ? 'bg-orange-500 text-white' : 
-              'bg-gray-200 dark:bg-gray-700'
+              i === 0 ? 'bg-accent-400/150 text-white' : 
+              i === 1 ? 'bg-charcoal-900/80 text-white' : 
+              i === 2 ? 'bg-accent-500/120 text-white' : 
+              'bg-charcoal-900/70 bg-charcoal-900/70'
             }`}>
               {entry.rank}
             </div>
             <Avatar src={entry.avatar} alt={entry.name} size="sm" />
             <div className="flex-1">
               <p className="font-medium text-sm">{entry.name}</p>
-              <p className="text-xs text-gray-500">{entry.streak} day streak</p>
+              <p className="text-xs text-white/60">{entry.streak} day streak</p>
             </div>
             <div className="text-right">
               <p className="font-bold text-green-600">{entry.points.toLocaleString()}</p>
-              <p className="text-xs text-gray-500">{entry.badges} badges</p>
+              <p className="text-xs text-white/60">{entry.badges} badges</p>
             </div>
           </div>
         ))}
@@ -1589,25 +1365,25 @@ const VitalSignsWidget = ({ vitals }) => {
         <Activity className="w-5 h-5 text-red-500" /> Vital Signs
       </h3>
       <div className="grid grid-cols-2 gap-4">
-        <div className="text-center p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
+        <div className="text-center p-3 bg-red-500/15 dark:bg-red-900/20 rounded-lg">
           <Heart className="w-6 h-6 text-red-500 mx-auto" />
           <p className="text-2xl font-bold mt-1">{vitals.heartRate}</p>
-          <p className="text-xs text-gray-500">Heart Rate (bpm)</p>
+          <p className="text-xs text-white/60">Heart Rate (bpm)</p>
         </div>
-        <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+        <div className="text-center p-3 bg-primary-400/15 dark:bg-blue-900/20 rounded-lg">
           <Activity className="w-6 h-6 text-blue-500 mx-auto" />
           <p className="text-2xl font-bold mt-1">{vitals.bloodPressure}</p>
-          <p className="text-xs text-gray-500">Blood Pressure</p>
+          <p className="text-xs text-white/60">Blood Pressure</p>
         </div>
-        <div className="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+        <div className="text-center p-3 bg-primary-500/15 dark:bg-green-900/20 rounded-lg">
           <Thermometer className="w-6 h-6 text-green-500 mx-auto" />
           <p className="text-2xl font-bold mt-1">{vitals.temperature}°F</p>
-          <p className="text-xs text-gray-500">Temperature</p>
+          <p className="text-xs text-white/60">Temperature</p>
         </div>
-        <div className="text-center p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+        <div className="text-center p-3 bg-accent-400/12 dark:bg-purple-900/20 rounded-lg">
           <Wind className="w-6 h-6 text-purple-500 mx-auto" />
           <p className="text-2xl font-bold mt-1">{vitals.oxygenSaturation}%</p>
-          <p className="text-xs text-gray-500">SpO2</p>
+          <p className="text-xs text-white/60">SpO2</p>
         </div>
       </div>
     </Card>
@@ -1615,9 +1391,10 @@ const VitalSignsWidget = ({ vitals }) => {
 };
 
 // Symptom Checker Component
-const SymptomChecker = ({ onAnalyze }) => {
+const SymptomChecker = ({ onAnalyze, onEmergency }) => {
   const [selectedSymptoms, setSelectedSymptoms] = useState([]);
   const [result, setResult] = useState(null);
+  const [saveState, setSaveState] = useState({ status: 'idle', message: '' });
 
   const commonSymptoms = [
     "Fever", "Headache", "Cough", "Fatigue", "Body Ache", "Nausea",
@@ -1633,10 +1410,46 @@ const SymptomChecker = ({ onAnalyze }) => {
     );
   };
 
-  const analyze = () => {
+  const analyze = async () => {
     const analysis = analyzeSymptoms(selectedSymptoms);
     setResult(analysis);
-    toast.success('Analysis complete');
+    setSaveState({ status: 'saving', message: 'Saving analysis...' });
+    let ok = true;
+    try {
+      if (onAnalyze) {
+        ok = await onAnalyze({
+          symptoms: selectedSymptoms,
+          result: analysis?.condition || '',
+          recommendation: analysis?.recommendation || ''
+        });
+      } else {
+        await apiRequest('/api/engagements/symptom-checks', {
+          method: 'POST',
+          body: JSON.stringify({
+            symptoms: selectedSymptoms,
+            result: analysis?.condition || '',
+            recommendation: analysis?.recommendation || ''
+          })
+        });
+      }
+    } catch (error) {
+      ok = false;
+      setDebugLog(prev => [
+        {
+          ts: new Date().toISOString(),
+          action: 'symptom-checks',
+          error: error?.message || String(error)
+        },
+        ...prev
+      ].slice(0, 5));
+    }
+    if (ok) {
+      toast.success('Analysis saved');
+      setSaveState({ status: 'saved', message: 'Analysis saved to your health record.' });
+    } else {
+      toast.error('Unable to save analysis. Please try again.');
+      setSaveState({ status: 'error', message: 'Save failed. Please try again.' });
+    }
   };
 
   return (
@@ -1645,7 +1458,7 @@ const SymptomChecker = ({ onAnalyze }) => {
         <Stethoscope className="w-5 h-5 text-green-500" /> AI Symptom Checker
       </h3>
       
-      <p className="text-sm text-gray-500 mb-3">Select your symptoms for AI-powered analysis</p>
+      <p className="text-sm text-white/60 mb-3">Select your symptoms for AI-powered analysis</p>
       
       <div className="flex flex-wrap gap-2 mb-4">
         {commonSymptoms.map((symptom) => (
@@ -1654,8 +1467,8 @@ const SymptomChecker = ({ onAnalyze }) => {
             onClick={() => toggleSymptom(symptom)}
             className={`px-3 py-1 rounded-full text-sm transition-colors ${
               selectedSymptoms.includes(symptom)
-                ? 'bg-green-500 text-white'
-                : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600'
+                ? 'bg-primary-500/40 text-white'
+                : 'bg-charcoal-900/70 hover:bg-charcoal-900/70 dark:hover:bg-charcoal-900/70'
             }`}
           >
             {symptom}
@@ -1674,9 +1487,9 @@ const SymptomChecker = ({ onAnalyze }) => {
 
       {result && (
         <div className={`mt-4 p-4 rounded-lg ${
-          result.urgency === 'High' ? 'bg-red-50 dark:bg-red-900/20 border border-red-200' :
-          result.urgency === 'Medium' ? 'bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200' :
-          'bg-green-50 dark:bg-green-900/20 border border-green-200'
+          result.urgency === 'High' ? 'bg-red-500/15 dark:bg-red-900/20 border border-red-500/30' :
+          result.urgency === 'Medium' ? 'bg-accent-400/15 dark:bg-yellow-900/20 border border-accent-400/30' :
+          'bg-primary-500/15 dark:bg-green-900/20 border border-primary-400/30'
         }`}>
           <div className="flex items-center gap-2 mb-2">
             {result.urgency === 'High' ? <AlertTriangle className="w-5 h-5 text-red-500" /> :
@@ -1684,21 +1497,31 @@ const SymptomChecker = ({ onAnalyze }) => {
              <CheckCircle className="w-5 h-5 text-green-500" />}
             <span className="font-medium">{result.condition}</span>
           </div>
-          <p className="text-sm text-gray-600 dark:text-gray-400">{result.recommendation}</p>
+          <p className="text-sm text-white/70 dark:text-white/50">{result.recommendation}</p>
           {result.urgency === 'High' && (
-            <Button variant="danger" size="sm" className="mt-3">
+            <Button variant="danger" size="sm" className="mt-3" onClick={() => onEmergency?.()}>
               <Phone className="w-4 h-4" /> Contact Emergency
             </Button>
           )}
         </div>
+      )}
+      {saveState.status !== 'idle' && (
+        <p className={`mt-3 text-xs ${
+          saveState.status === 'saved' ? 'text-emerald-400' :
+          saveState.status === 'error' ? 'text-red-400' :
+          'text-white/60'
+        }`}>
+          {saveState.message}
+        </p>
       )}
     </Card>
   );
 };
 
 // Mood Tracker Component
-const MoodTracker = () => {
+const MoodTracker = ({ onLogMood }) => {
   const [selectedMood, setSelectedMood] = useState(null);
+  const [saveState, setSaveState] = useState({ status: 'idle', message: '' });
   const [moodHistory, setMoodHistory] = useState([
     { date: '2024-01-15', mood: 'happy', note: 'Great day!' },
     { date: '2024-01-14', mood: 'neutral', note: 'Normal day' },
@@ -1707,19 +1530,51 @@ const MoodTracker = () => {
 
   const moods = [
     { key: 'happy', emoji: '😊', label: 'Happy', color: 'bg-green-100 text-green-600' },
-    { key: 'neutral', emoji: '😐', label: 'Neutral', color: 'bg-gray-100 text-gray-600' },
+    { key: 'neutral', emoji: '😐', label: 'Neutral', color: 'bg-charcoal-900/60 text-white/70' },
     { key: 'sad', emoji: '😢', label: 'Sad', color: 'bg-blue-100 text-blue-600' },
     { key: 'anxious', emoji: '😰', label: 'Anxious', color: 'bg-yellow-100 text-yellow-600' },
     { key: 'stressed', emoji: '😤', label: 'Stressed', color: 'bg-red-100 text-red-600' },
   ];
 
-  const logMood = () => {
+  const logMood = async () => {
     if (!selectedMood) return;
     setMoodHistory(prev => [
       { date: new Date().toISOString().slice(0, 10), mood: selectedMood, note: '' },
       ...prev
     ]);
-    toast.success('Mood logged successfully');
+    setSaveState({ status: 'saving', message: 'Saving mood...' });
+    let ok = true;
+    try {
+      if (onLogMood) {
+        const moodMeta = moods.find((m) => m.key === selectedMood);
+        ok = await onLogMood({ mood: selectedMood, label: moodMeta?.label || selectedMood });
+      } else {
+        await apiRequest('/api/engagements/mood-logs', {
+          method: 'POST',
+          body: JSON.stringify({
+            mood: selectedMood,
+            label: moods.find((m) => m.key === selectedMood)?.label || selectedMood
+          })
+        });
+      }
+    } catch (error) {
+      ok = false;
+      setDebugLog(prev => [
+        {
+          ts: new Date().toISOString(),
+          action: 'mood-logs',
+          error: error?.message || String(error)
+        },
+        ...prev
+      ].slice(0, 5));
+    }
+    if (ok) {
+      toast.success('Mood saved');
+      setSaveState({ status: 'saved', message: 'Mood logged to your wellness timeline.' });
+    } else {
+      toast.error('Unable to save mood. Please try again.');
+      setSaveState({ status: 'error', message: 'Save failed. Please try again.' });
+    }
     setSelectedMood(null);
   };
 
@@ -1729,7 +1584,7 @@ const MoodTracker = () => {
         <Smile className="w-5 h-5 text-yellow-500" /> Mood Tracker
       </h3>
 
-      <p className="text-sm text-gray-500 mb-3">How are you feeling today?</p>
+      <p className="text-sm text-white/60 mb-3">How are you feeling today?</p>
 
       <div className="flex justify-between mb-4">
         {moods.map((mood) => (
@@ -1739,7 +1594,7 @@ const MoodTracker = () => {
             className={`p-3 rounded-xl transition-all ${
               selectedMood === mood.key 
                 ? `${mood.color} ring-2 ring-offset-2 ring-current` 
-                : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+                : 'hover:bg-charcoal-900/60 dark:hover:bg-charcoal-900/70'
             }`}
           >
             <span className="text-2xl">{mood.emoji}</span>
@@ -1760,31 +1615,59 @@ const MoodTracker = () => {
         <h4 className="text-sm font-medium mb-2">Recent Moods</h4>
         <div className="space-y-2">
           {moodHistory.slice(0, 5).map((entry, i) => (
-            <div key={i} className="flex items-center justify-between text-sm p-2 bg-gray-50 dark:bg-gray-800 rounded">
+            <div key={i} className="flex items-center justify-between text-sm p-2 bg-charcoal-950 bg-charcoal-950 rounded">
               <span>{moods.find(m => m.key === entry.mood)?.emoji} {entry.date}</span>
-              <span className="text-gray-500">{entry.note}</span>
+              <span className="text-white/60">{entry.note}</span>
             </div>
           ))}
         </div>
       </div>
+      {saveState.status !== 'idle' && (
+        <p className={`mt-3 text-xs ${
+          saveState.status === 'saved' ? 'text-emerald-400' :
+          saveState.status === 'error' ? 'text-red-400' :
+          'text-white/60'
+        }`}>
+          {saveState.message}
+        </p>
+      )}
     </Card>
   );
 };
 
 // Medication Reminder Component
-const MedicationReminder = ({ medications }) => {
-  const [reminders, setReminders] = useState([
-    { id: 1, name: 'Metformin', time: '08:00 AM', taken: false },
-    { id: 2, name: 'Lisinopril', time: '08:00 AM', taken: true },
-    { id: 3, name: 'Aspirin', time: '12:00 PM', taken: false },
-    { id: 4, name: 'Atorvastatin', time: '08:00 PM', taken: false },
-  ]);
+const MedicationReminder = ({ medications, onAdd, onToggle }) => {
+  const [reminders, setReminders] = useState([]);
+
+  useEffect(() => {
+    if (!Array.isArray(medications) || medications.length === 0) {
+      setReminders([]);
+      return;
+    }
+
+    const seeded = medications.map((med, index) => ({
+      id: med.id || med._id || `med-${index}`,
+      name: med.name || 'Medication',
+      time: med.frequency || med.dosage || 'As prescribed',
+      taken: false
+    }));
+
+    setReminders(seeded);
+  }, [medications]);
 
   const toggleTaken = (id) => {
+    const entry = reminders.find((r) => r.id === id);
     setReminders(prev => prev.map(r => 
       r.id === id ? { ...r, taken: !r.taken } : r
     ));
     toast.success('Medication status updated');
+    if (onToggle && entry) {
+      onToggle({
+        reminderId: entry.id,
+        name: entry.name,
+        taken: !entry.taken
+      });
+    }
   };
 
   const progress = (reminders.filter(r => r.taken).length / reminders.length) * 100;
@@ -1803,27 +1686,27 @@ const MedicationReminder = ({ medications }) => {
           <div 
             key={reminder.id}
             className={`flex items-center gap-3 p-3 rounded-lg border ${
-              reminder.taken ? 'bg-green-50 dark:bg-green-900/20 border-green-200' : 'border-gray-200 dark:border-gray-700'
+              reminder.taken ? 'bg-primary-500/15 dark:bg-green-900/20 border-primary-400/30' : 'border-white/10 border-white/10'
             }`}
           >
             <button 
               onClick={() => toggleTaken(reminder.id)}
               className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
-                reminder.taken ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300'
+                reminder.taken ? 'bg-primary-500/40 border-green-500 text-white' : 'border-white/20'
               }`}
             >
               {reminder.taken && <CheckCircle className="w-4 h-4" />}
             </button>
             <div className="flex-1">
-              <p className={`font-medium ${reminder.taken ? 'line-through text-gray-400' : ''}`}>{reminder.name}</p>
-              <p className="text-sm text-gray-500">{reminder.time}</p>
+              <p className={`font-medium ${reminder.taken ? 'line-through text-white/50' : ''}`}>{reminder.name}</p>
+              <p className="text-sm text-white/60">{reminder.time}</p>
             </div>
-            <Bell className="w-4 h-4 text-gray-400" />
+            <Bell className="w-4 h-4 text-white/50" />
           </div>
         ))}
       </div>
 
-      <Button variant="outline" size="sm" className="mt-4 w-full">
+      <Button variant="outline" size="sm" className="mt-4 w-full" onClick={onAdd}>
         <Plus className="w-4 h-4" /> Add Medication
       </Button>
     </Card>
@@ -1919,12 +1802,12 @@ const ChatInterface = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed bottom-20 right-6 z-50 w-96 max-w-[calc(100vw-2rem)] bg-white dark:bg-gray-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col" style={{ height: '500px' }}>
+    <div className="fixed bottom-20 right-6 z-50 w-96 max-w-[calc(100vw-2rem)] bg-charcoal-950 rounded-2xl shadow-2xl overflow-hidden flex flex-col" style={{ height: '500px' }}>
       {/* Header */}
-      <div className="bg-gradient-to-r from-green-600 to-blue-600 p-4 text-white">
+      <div className="bg-gradient-to-r from-primary-900 to-primary-700 p-4 text-white">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+            <div className="w-10 h-10 bg-charcoal-900/70 rounded-full flex items-center justify-center">
               <MessageSquare className="w-5 h-5" />
             </div>
             <div>
@@ -1932,7 +1815,7 @@ const ChatInterface = ({ isOpen, onClose }) => {
               <p className="text-xs text-white/80">AI-Powered Support</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-white/20 rounded-lg">
+          <button onClick={onClose} className="p-2 hover:bg-charcoal-900/70 rounded-lg">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -1945,10 +1828,10 @@ const ChatInterface = ({ isOpen, onClose }) => {
             <div className={`max-w-[80%] p-3 rounded-2xl ${
               msg.from === 'user' 
                 ? 'bg-green-600 text-white rounded-br-sm' 
-                : 'bg-gray-100 dark:bg-gray-700 rounded-bl-sm'
+                : 'bg-charcoal-900/70 rounded-bl-sm'
             }`}>
               <p className="text-sm whitespace-pre-line">{msg.text}</p>
-              <p className={`text-xs mt-1 ${msg.from === 'user' ? 'text-white/70' : 'text-gray-400'}`}>
+              <p className={`text-xs mt-1 ${msg.from === 'user' ? 'text-white/70' : 'text-white/50'}`}>
                 {msg.time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </p>
             </div>
@@ -1956,11 +1839,11 @@ const ChatInterface = ({ isOpen, onClose }) => {
         ))}
         {isTyping && (
           <div className="flex justify-start">
-            <div className="bg-gray-100 dark:bg-gray-700 p-3 rounded-2xl rounded-bl-sm">
+            <div className="bg-charcoal-900/70 p-3 rounded-2xl rounded-bl-sm">
               <div className="flex gap-1">
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                <div className="w-2 h-2 bg-charcoal-900/80 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                <div className="w-2 h-2 bg-charcoal-900/80 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                <div className="w-2 h-2 bg-charcoal-900/80 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
               </div>
             </div>
           </div>
@@ -1968,13 +1851,13 @@ const ChatInterface = ({ isOpen, onClose }) => {
       </div>
 
       {/* Quick Actions */}
-      <div className="px-4 py-2 border-t dark:border-gray-700">
+      <div className="px-4 py-2 border-t border-white/10">
         <div className="flex gap-2 overflow-x-auto pb-2">
           {['Book Appointment', 'Find Doctor', 'Lab Results', 'Emergency'].map((action) => (
             <button
               key={action}
               onClick={() => sendMessage(action)}
-              className="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-xs whitespace-nowrap hover:bg-gray-200 dark:hover:bg-gray-600"
+              className="px-3 py-1 bg-charcoal-900/70 rounded-full text-xs whitespace-nowrap hover:bg-charcoal-900/70 dark:hover:bg-charcoal-900/70"
             >
               {action}
             </button>
@@ -1983,12 +1866,12 @@ const ChatInterface = ({ isOpen, onClose }) => {
       </div>
 
       {/* Input */}
-      <div className="p-4 border-t dark:border-gray-700">
+      <div className="p-4 border-t border-white/10">
         <form onSubmit={(e) => { e.preventDefault(); sendMessage(inputText); }} className="flex gap-2">
           <button
             type="button"
             onClick={startVoiceInput}
-            className={`p-2 rounded-lg ${isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-gray-100 dark:bg-gray-700'}`}
+            className={`p-2 rounded-lg ${isListening ? 'bg-red-500/40 text-white animate-pulse' : 'bg-charcoal-900/70'}`}
           >
             {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
           </button>
@@ -1996,7 +1879,7 @@ const ChatInterface = ({ isOpen, onClose }) => {
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             placeholder="Type your message..."
-            className="flex-1 px-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg outline-none"
+            className="flex-1 px-4 py-2 bg-charcoal-900/70 rounded-lg outline-none"
           />
           <Button type="submit" variant="primary" disabled={!inputText.trim()}>
             <Send className="w-5 h-5" />
@@ -2031,25 +1914,25 @@ const VideoCallInterface = ({ isOpen, onClose, doctor }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-gray-900">
+    <div className="fixed inset-0 z-50 bg-charcoal-950">
       {/* Main Video */}
       <div className="absolute inset-0 flex items-center justify-center">
-        <div className="relative w-full h-full max-w-4xl max-h-[80vh] bg-gray-800 rounded-lg overflow-hidden">
+        <div className="relative w-full h-full max-w-4xl max-h-[80vh] bg-charcoal-950 rounded-lg overflow-hidden">
           <img 
             src={doctor?.avatar || "https://i.pravatar.cc/800"} 
             alt="Doctor" 
             className="w-full h-full object-cover"
           />
           {isVideoOff && (
-            <div className="absolute inset-0 bg-gray-900 flex items-center justify-center">
-              <VideoOff className="w-20 h-20 text-gray-600" />
+            <div className="absolute inset-0 bg-charcoal-950 flex items-center justify-center">
+              <VideoOff className="w-20 h-20 text-white/70" />
             </div>
           )}
         </div>
       </div>
 
       {/* Self Video */}
-      <div className="absolute bottom-24 right-6 w-48 h-36 bg-gray-800 rounded-lg overflow-hidden shadow-lg">
+      <div className="absolute bottom-24 right-6 w-48 h-36 bg-charcoal-950 rounded-lg overflow-hidden shadow-lg">
         <img 
           src="https://i.pravatar.cc/200?img=5" 
           alt="You" 
@@ -2068,7 +1951,7 @@ const VideoCallInterface = ({ isOpen, onClose, doctor }) => {
             </div>
           </div>
           <div className="flex items-center gap-2 text-white">
-            <div className="px-3 py-1 bg-red-500 rounded-full text-sm flex items-center gap-1">
+            <div className="px-3 py-1 bg-red-500/40 rounded-full text-sm flex items-center gap-1">
               <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
               {formatDuration(callDuration)}
             </div>
@@ -2081,19 +1964,19 @@ const VideoCallInterface = ({ isOpen, onClose, doctor }) => {
         <div className="flex items-center justify-center gap-4">
           <button
             onClick={() => setIsMuted(!isMuted)}
-            className={`p-4 rounded-full ${isMuted ? 'bg-red-500' : 'bg-gray-700 hover:bg-gray-600'}`}
+            className={`p-4 rounded-full ${isMuted ? 'bg-red-500/40' : 'bg-charcoal-900/70 hover:bg-charcoal-900/70'}`}
           >
             {isMuted ? <MicOff className="w-6 h-6 text-white" /> : <Mic className="w-6 h-6 text-white" />}
           </button>
           <button
             onClick={() => setIsVideoOff(!isVideoOff)}
-            className={`p-4 rounded-full ${isVideoOff ? 'bg-red-500' : 'bg-gray-700 hover:bg-gray-600'}`}
+            className={`p-4 rounded-full ${isVideoOff ? 'bg-red-500/40' : 'bg-charcoal-900/70 hover:bg-charcoal-900/70'}`}
           >
             {isVideoOff ? <VideoOff className="w-6 h-6 text-white" /> : <Video className="w-6 h-6 text-white" />}
           </button>
           <button
             onClick={() => setIsScreenSharing(!isScreenSharing)}
-            className={`p-4 rounded-full ${isScreenSharing ? 'bg-green-500' : 'bg-gray-700 hover:bg-gray-600'}`}
+            className={`p-4 rounded-full ${isScreenSharing ? 'bg-primary-500/40' : 'bg-charcoal-900/70 hover:bg-charcoal-900/70'}`}
           >
             <Monitor className="w-6 h-6 text-white" />
           </button>
@@ -2116,25 +1999,25 @@ const NotificationPanel = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="absolute top-full right-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-xl shadow-xl border dark:border-gray-700 overflow-hidden z-50">
-      <div className="p-4 border-b dark:border-gray-700 flex items-center justify-between">
+    <div className="absolute top-full right-0 mt-2 w-80 bg-charcoal-950 rounded-xl shadow-xl border border-white/10 overflow-hidden z-50">
+      <div className="p-4 border-b border-white/10 flex items-center justify-between">
         <h3 className="font-semibold">Notifications</h3>
-        <button onClick={clearAll} className="text-sm text-gray-500 hover:text-gray-700">
+        <button onClick={clearAll} className="text-sm text-white/60 hover:text-white">
           Clear all
         </button>
       </div>
       <div className="max-h-96 overflow-y-auto">
         {notifications.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">
-            <Bell className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+          <div className="p-8 text-center text-white/60">
+            <Bell className="w-12 h-12 mx-auto mb-2 text-white/30" />
             <p>No notifications</p>
           </div>
         ) : (
           notifications.map((notification) => (
             <div
               key={notification.id}
-              className={`p-4 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer ${
-                !notification.read ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+              className={`p-4 border-b border-white/10 hover:bg-charcoal-900/60 hover:bg-charcoal-900/60 cursor-pointer ${
+                !notification.read ? 'bg-primary-400/15 dark:bg-blue-900/20' : ''
               }`}
               onClick={() => markAsRead(notification.id)}
             >
@@ -2152,13 +2035,13 @@ const NotificationPanel = ({ isOpen, onClose }) => {
                 </div>
                 <div className="flex-1">
                   <p className="text-sm">{notification.text}</p>
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-white/60 mt-1">
                     {new Date(notification.timestamp).toLocaleString()}
                   </p>
                 </div>
                 <button
                   onClick={(e) => { e.stopPropagation(); removeNotification(notification.id); }}
-                  className="text-gray-400 hover:text-gray-600"
+                  className="text-white/50 hover:text-white/70"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -2176,12 +2059,12 @@ const SearchResults = ({ results, onClose }) => {
   if (results.length === 0) return null;
 
   return (
-    <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-gray-800 rounded-xl shadow-xl border dark:border-gray-700 overflow-hidden z-50">
+    <div className="absolute top-full left-0 right-0 mt-2 bg-charcoal-950 rounded-xl shadow-xl border border-white/10 overflow-hidden z-50">
       <div className="p-2">
         {results.map((result, i) => (
           <div
             key={i}
-            className="p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg cursor-pointer"
+            className="p-3 hover:bg-charcoal-900/60 dark:hover:bg-charcoal-900/70 rounded-lg cursor-pointer"
           >
             <div className="flex items-center gap-3">
               <div className={`p-2 rounded-lg ${
@@ -2195,7 +2078,7 @@ const SearchResults = ({ results, onClose }) => {
               </div>
               <div>
                 <p className="font-medium text-sm">{result.title}</p>
-                <p className="text-xs text-gray-500">{result.hint}</p>
+                <p className="text-xs text-white/60">{result.hint}</p>
               </div>
             </div>
           </div>
@@ -2208,11 +2091,11 @@ const SearchResults = ({ results, onClose }) => {
 // Sign Language Avatar Placeholder
 const SignLanguageAvatar = ({ text }) => {
   return (
-    <div className="fixed bottom-6 left-6 z-40 bg-white dark:bg-gray-800 rounded-xl shadow-lg p-4 w-48">
-      <div className="aspect-square bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center mb-2">
-        <Hand className="w-16 h-16 text-gray-400 animate-pulse" />
+    <div className="fixed bottom-6 left-6 z-40 bg-charcoal-950 rounded-xl shadow-lg p-4 w-48">
+      <div className="aspect-square bg-charcoal-900/70 rounded-lg flex items-center justify-center mb-2">
+        <Hand className="w-16 h-16 text-white/50 animate-pulse" />
       </div>
-      <p className="text-xs text-center text-gray-500">Sign Language Interpreter</p>
+      <p className="text-xs text-center text-white/60">Sign Language Interpreter</p>
     </div>
   );
 };
@@ -2253,45 +2136,45 @@ const WearableDataWidget = () => {
 
       <div className="space-y-3 mb-4">
         {devices.map((device) => (
-          <div key={device.id} className="flex items-center gap-3 p-2 bg-gray-50 dark:bg-gray-800 rounded-lg">
-            <div className={`p-2 rounded-lg ${device.connected ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}>
+          <div key={device.id} className="flex items-center gap-3 p-2 bg-charcoal-950 bg-charcoal-950 rounded-lg">
+            <div className={`p-2 rounded-lg ${device.connected ? 'bg-green-100 text-green-600' : 'bg-charcoal-900/60 text-white/50'}`}>
               {device.type === 'smartwatch' ? <Watch className="w-4 h-4" /> :
                device.type === 'fitness' ? <Activity className="w-4 h-4" /> :
                <Thermometer className="w-4 h-4" />}
             </div>
             <div className="flex-1">
               <p className="text-sm font-medium">{device.name}</p>
-              <p className="text-xs text-gray-500">{device.lastSync}</p>
+              <p className="text-xs text-white/60">{device.lastSync}</p>
             </div>
             <div className="flex items-center gap-2">
-              <Battery className="w-4 h-4 text-gray-400" />
+              <Battery className="w-4 h-4 text-white/50" />
               <span className="text-xs">{device.battery}%</span>
-              <div className={`w-2 h-2 rounded-full ${device.connected ? 'bg-green-500' : 'bg-gray-400'}`} />
+              <div className={`w-2 h-2 rounded-full ${device.connected ? 'bg-primary-500/40' : 'bg-charcoal-900/80'}`} />
             </div>
           </div>
         ))}
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-center">
+        <div className="p-3 bg-primary-400/15 dark:bg-blue-900/20 rounded-lg text-center">
           <Footprints className="w-5 h-5 text-blue-500 mx-auto" />
           <p className="text-lg font-bold mt-1">{liveData.steps.toLocaleString()}</p>
-          <p className="text-xs text-gray-500">Steps</p>
+          <p className="text-xs text-white/60">Steps</p>
         </div>
-        <div className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg text-center">
+        <div className="p-3 bg-accent-500/12 dark:bg-orange-900/20 rounded-lg text-center">
           <Zap className="w-5 h-5 text-orange-500 mx-auto" />
           <p className="text-lg font-bold mt-1">{liveData.calories}</p>
-          <p className="text-xs text-gray-500">Calories</p>
+          <p className="text-xs text-white/60">Calories</p>
         </div>
-        <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg text-center">
+        <div className="p-3 bg-primary-500/15 dark:bg-green-900/20 rounded-lg text-center">
           <MapPin className="w-5 h-5 text-green-500 mx-auto" />
           <p className="text-lg font-bold mt-1">{liveData.distance} km</p>
-          <p className="text-xs text-gray-500">Distance</p>
+          <p className="text-xs text-white/60">Distance</p>
         </div>
-        <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg text-center">
+        <div className="p-3 bg-accent-400/12 dark:bg-purple-900/20 rounded-lg text-center">
           <Moon className="w-5 h-5 text-purple-500 mx-auto" />
           <p className="text-lg font-bold mt-1">{liveData.sleepHours}h</p>
-          <p className="text-xs text-gray-500">Sleep</p>
+          <p className="text-xs text-white/60">Sleep</p>
         </div>
       </div>
     </Card>
@@ -2299,17 +2182,22 @@ const WearableDataWidget = () => {
 };
 
 // Insurance Card Component
-const InsuranceCard = ({ insurance }) => {
+const InsuranceCard = ({ insurance, onView }) => {
   return (
     <Card className="p-4 bg-gradient-to-br from-blue-600 to-purple-600 text-white">
       <div className="flex items-center justify-between mb-4">
         <div className="text-2xl">{insurance.logo}</div>
-        <Badge className="bg-white/20 text-white">{insurance.coverage} Coverage</Badge>
+        <Badge className="bg-charcoal-900/70 text-white">{insurance.coverage} Coverage</Badge>
       </div>
       <h3 className="font-semibold text-lg">{insurance.name}</h3>
       <p className="text-sm text-white/70 mt-1">{insurance.network}</p>
       <div className="mt-4 flex items-center justify-between">
-        <Button variant="secondary" size="sm" className="bg-white/20 hover:bg-white/30 text-white border-0">
+        <Button
+          variant="secondary"
+          size="sm"
+          className="bg-charcoal-900/70 hover:bg-charcoal-900/80 text-white border-0"
+          onClick={() => onView?.(insurance)}
+        >
           View Details
         </Button>
         <Shield className="w-8 h-8 text-white/50" />
@@ -2319,21 +2207,20 @@ const InsuranceCard = ({ insurance }) => {
 };
 
 // Emergency Services Widget
-const EmergencyServicesWidget = () => {
-  const services = makeEmergencyServices();
+const EmergencyServicesWidget = ({ services = [] }) => {
 
   return (
-    <Card className="p-4 border-2 border-red-200 dark:border-red-800">
+    <Card className="p-4 border-2 border-red-500/30 dark:border-red-800">
       <h3 className="font-semibold mb-4 flex items-center gap-2 text-red-600">
         <AlertTriangle className="w-5 h-5" /> Emergency Services
       </h3>
       <div className="space-y-3">
         {services.map((service) => (
-          <div key={service.id} className="flex items-center gap-3 p-2 bg-red-50 dark:bg-red-900/20 rounded-lg">
+          <div key={service.id} className="flex items-center gap-3 p-2 bg-red-500/15 dark:bg-red-900/20 rounded-lg">
             <div className="text-2xl">{service.icon}</div>
             <div className="flex-1">
               <p className="font-medium text-sm">{service.name}</p>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-white/60">
                 {service.responseTime ? `Response: ${service.responseTime}` : 
                  service.units ? `${service.units} units available` :
                  service.beds ? `${service.beds} beds` : ''}
@@ -2352,8 +2239,7 @@ const EmergencyServicesWidget = () => {
 };
 
 // Research Studies Widget
-const ResearchStudiesWidget = () => {
-  const studies = makeResearchStudies();
+const ResearchStudiesWidget = ({ studies = [] }) => {
 
   return (
     <Card className="p-4">
@@ -2362,7 +2248,7 @@ const ResearchStudiesWidget = () => {
       </h3>
       <div className="space-y-3">
         {studies.map((study) => (
-          <div key={study.id} className="p-3 border dark:border-gray-700 rounded-lg">
+          <div key={study.id} className="p-3 border border-white/10 rounded-lg">
             <div className="flex items-start justify-between">
               <div>
                 <h4 className="font-medium text-sm">{study.title}</h4>
@@ -2373,7 +2259,7 @@ const ResearchStudiesWidget = () => {
             </div>
             <div className="mt-2">
               <ProgressBar value={study.participants} max={study.target} color="purple" />
-              <p className="text-xs text-gray-500 mt-1">{study.participants}/{study.target} participants</p>
+              <p className="text-xs text-white/60 mt-1">{study.participants}/{study.target} participants</p>
             </div>
             {study.status === 'Recruiting' && (
               <Button variant="outline" size="xs" className="mt-2">
@@ -2391,7 +2277,7 @@ const ResearchStudiesWidget = () => {
 const HospitalMap = () => {
   return (
     <Card className="overflow-hidden">
-      <div className="p-4 border-b dark:border-gray-700">
+      <div className="p-4 border-b border-white/10">
         <h3 className="font-semibold flex items-center gap-2">
           <Map className="w-5 h-5 text-green-500" /> Hospital Navigation
         </h3>
@@ -2404,12 +2290,12 @@ const HospitalMap = () => {
           loading="lazy"
           referrerPolicy="no-referrer-when-downgrade"
         />
-        <div className="absolute bottom-4 left-4 right-4 bg-white/90 dark:bg-gray-800/90 backdrop-blur rounded-lg p-3">
+        <div className="absolute bottom-4 left-4 right-4 bg-charcoal-950/90 bg-charcoal-950/90 backdrop-blur rounded-lg p-3">
           <div className="flex items-center gap-3">
             <MapPin className="w-5 h-5 text-red-500" />
             <div>
               <p className="font-medium text-sm">Medicore Hospital</p>
-              <p className="text-xs text-gray-500">Stadium Road, Karachi, Pakistan</p>
+              <p className="text-xs text-white/60">Stadium Road, Karachi, Pakistan</p>
             </div>
             <Button variant="primary" size="sm" className="ml-auto">
               Directions
@@ -2435,7 +2321,7 @@ const ComplianceBadges = () => {
     <div className="flex flex-wrap gap-3 justify-center">
       {badges.map((badge, i) => (
         <Tooltip key={i} content={badge.description}>
-          <div className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700">
+          <div className="flex items-center gap-2 px-3 py-2 bg-charcoal-950 rounded-lg shadow-sm border border-white/10">
             <span className="text-xl">{badge.icon}</span>
             <span className="text-sm font-medium">{badge.name}</span>
           </div>
@@ -2450,25 +2336,61 @@ const ComplianceBadges = () => {
 export default function Hero() {
   const navigate = useNavigate();
   
-  // Initialize memoized data
-  const doctors = useMemo(() => makeDoctors(24), []);
-  const patients = useMemo(() => makePatients(50), []);
-  const appointments = useMemo(() => makeAppointments(30), []);
-  const labResults = useMemo(() => makeLabResults(20), []);
-  const medications = useMemo(() => makeMedications(30), []);
-  const equipment = useMemo(() => makeEquipment(25), []);
-  const rooms = useMemo(() => makeRooms(40), []);
-  const staff = useMemo(() => makeStaff(50), []);
-  const articles = useMemo(() => makeArticles(12), []);
-  const testimonials = useMemo(() => makeTestimonials(10), []);
-  const insuranceProviders = useMemo(() => makeInsuranceProviders(), []);
-  const wellnessPrograms = useMemo(() => makeWellnessPrograms(), []);
-  const challenges = useMemo(() => makeChallenges(), []);
-  const leaderboard = useMemo(() => makeLeaderboard(), []);
-  const researchStudies = useMemo(() => makeResearchStudies(), []);
+  const [services, setServices] = useState([]);
+  const [doctors, setDoctors] = useState([]);
+  const [patients, setPatients] = useState([]);
+  const [appointments, setAppointments] = useState([]);
+  const [labResults, setLabResults] = useState([]);
+  const [medications, setMedications] = useState([]);
+  const [equipment, setEquipment] = useState([]);
+  const [rooms, setRooms] = useState([]);
+  const [staff, setStaff] = useState([]);
+  const [articles, setArticles] = useState([]);
+  const [testimonials, setTestimonials] = useState([]);
+  const [insuranceProviders, setInsuranceProviders] = useState([]);
+  const [wellnessPrograms, setWellnessPrograms] = useState([]);
+  const [challenges, setChallenges] = useState([]);
+  const [leaderboard, setLeaderboard] = useState([]);
+  const [researchStudies, setResearchStudies] = useState([]);
+  const [emergencyServices, setEmergencyServices] = useState([]);
+  const [engagementStats, setEngagementStats] = useState({
+    favorites: 0,
+    articleReads: 0,
+    wellnessEnrollments: 0,
+    challengeJoins: 0,
+    medicationRefills: 0,
+    moodLogs: 0,
+    symptomChecks: 0,
+    reminderLogs: 0,
+    insuranceViews: 0
+  });
+  const [selectedInsurance, setSelectedInsurance] = useState(null);
+  const [insuranceOpen, setInsuranceOpen] = useState(false);
+  const lastToastRef = useRef(0);
+  const [infoModal, setInfoModal] = useState({ open: false, title: '', body: '' });
+  const [debugLog, setDebugLog] = useState([]);
 
+  const serviceIconMap = {
+    Heart: '❤️',
+    Brain: '🧠',
+    Baby: '👶',
+    Stethoscope: '🩺',
+    Activity: '📈',
+    ShieldCheck: '🛡️'
+  };
+  const serviceColors = ['red', 'purple', 'pink', 'green', 'orange', 'indigo', 'yellow', 'teal', 'cyan', 'lime'];
+  const serviceCards = (services?.length ? services : defaultServices).map((service, index) => {
+    if (service.key) return service;
+    return {
+      key: service.id || service.title || `service-${index}`,
+      title: service.title || 'Service',
+      desc: service.description || service.desc || '',
+      icon: serviceIconMap[service.icon] || service.icon || '🏥',
+      color: serviceColors[index % serviceColors.length]
+    };
+  });
   // State
-  const [dark, setDark] = useState(false);
+  const [dark, setDark] = useState(true);
   const [highContrast, setHighContrast] = useState(false);
   const [fontSize, setFontSize] = useState('base');
   const [lang, setLang] = useState('en');
@@ -2487,24 +2409,18 @@ export default function Hero() {
   
   // Live Stats
   const [liveStats, setLiveStats] = useState({
-    beds: 42,
-    doctorsOnline: 18,
-    erWait: 12,
-    surgeries: 2,
+    beds: 0,
+    doctorsOnline: 0,
+    erWait: 0,
+    surgeries: 0,
     alerts: 0,
-    patientsToday: 156,
-    appointmentsToday: 89,
-    labTestsCompleted: 234,
+    patientsToday: 0,
+    appointmentsToday: 0,
+    labTestsCompleted: 0,
   });
 
   // Booking Slots
-  const [slots, setSlots] = useState(
-    Array.from({ length: 8 }).map((_, i) => ({ 
-      id: i, 
-      time: `${9 + i}:00`, 
-      free: Math.random() > 0.4 
-    }))
-  );
+  const [slots, setSlots] = useState([]);
 
   // Natural Language Booking
   const [nlInput, setNlInput] = useState('');
@@ -2512,11 +2428,24 @@ export default function Hero() {
 
   // Predictive Insights
   const [insights, setInsights] = useState({
-    erWaitForecast: [12, 10, 15, 18, 16, 13, 12, 14, 11, 9, 10, 12],
-    bedOccupancyTrend: [60, 62, 65, 63, 67, 70, 68, 72, 75, 73, 70, 68],
-    readmissionRisk: 6,
-    surgeryVolume: [5, 8, 6, 9, 7, 10, 8, 11, 9, 7, 8, 6],
+    erWaitForecast: [],
+    bedOccupancyTrend: [],
+    readmissionRisk: 0,
+    surgeryVolume: [],
   });
+  const erWaitForecast = insights.erWaitForecast.length ? insights.erWaitForecast : [0];
+  const bedOccupancyTrend = insights.bedOccupancyTrend.length ? insights.bedOccupancyTrend : [0];
+  const surgeryVolume = insights.surgeryVolume.length ? insights.surgeryVolume : [0];
+  const featuredDoctor = doctors[0];
+  const safeDoc = featuredDoctor || {
+    name: 'Loading...',
+    specialty: 'General',
+    rating: 0,
+    years: 0,
+    reviewCount: 0,
+    consultationFee: 0,
+    avatar: ''
+  };
 
   // Sample Vitals
   const [vitals] = useState({
@@ -2529,36 +2458,233 @@ export default function Hero() {
   });
 
   // Notifications
-  const [notifications, setNotifications] = useState([
-    { id: 1, text: "Flu vaccine available this week", type: "info", read: false, timestamp: new Date() },
-    { id: 2, text: "Your lab results are ready", type: "success", read: false, timestamp: new Date() },
-    { id: 3, text: "Appointment reminder: Tomorrow 10:00 AM", type: "reminder", read: false, timestamp: new Date() },
-  ]);
+  const [notifications, setNotifications] = useState([]);
 
   // Speech Recognition Ref
   const speechRecRef = useRef(null);
+  const lastUiLogRef = useRef(0);
+  const lastSearchLogRef = useRef(0);
+
+  const logUiEvent = useCallback(async (payload = {}) => {
+    const body = {
+      action: payload.action || 'ui_click',
+      resource: payload.resource || 'ui',
+      description: payload.description || 'UI interaction',
+      details: payload.details || {},
+      severity: payload.severity || 'low',
+      status: payload.status || 'success'
+    };
+
+    try {
+      await apiRequest('/api/activity/public', {
+        method: 'POST',
+        body: JSON.stringify(body)
+      });
+    } catch (error) {
+      // Never block UI on logging
+    }
+  }, []);
+
+  const postEngagement = useCallback(async (endpoint, payload) => {
+    try {
+      await apiRequest(`/api/engagements/${endpoint}`, {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+      return true;
+    } catch (error) {
+      // Never block UI on engagement logging
+      return false;
+    }
+  }, []);
+
+  const bumpEngagement = useCallback((key, by = 1) => {
+    setEngagementStats((prev) => ({ ...prev, [key]: (prev?.[key] || 0) + by }));
+  }, []);
+
+  const showPremiumToast = useCallback((message, variant = 'info') => {
+    toast.custom((t) => (
+      <div
+        className={`px-4 py-3 rounded-xl border border-white/10 shadow-2xl backdrop-blur-xl ${
+          variant === 'success'
+            ? 'bg-emerald-500/15 text-white'
+            : variant === 'warning'
+            ? 'bg-amber-500/15 text-white'
+            : variant === 'danger'
+            ? 'bg-red-500/15 text-white'
+            : 'bg-charcoal-900/80 text-white'
+        }`}
+      >
+        <p className="text-sm font-medium">{message}</p>
+      </div>
+    ), { duration: 1600 });
+  }, []);
+
+  const handleUiClickCapture = useCallback((event) => {
+    const target = event.target?.closest?.('button, a, [role="button"]');
+    if (!target) return;
+
+    const now = Date.now();
+    if (now - lastUiLogRef.current < 200) return;
+    lastUiLogRef.current = now;
+
+    const label =
+      target.getAttribute('data-track') ||
+      target.getAttribute('aria-label') ||
+      target.getAttribute('title') ||
+      (target.innerText || '').trim().slice(0, 80) ||
+      'button';
+
+    logUiEvent({
+      action: 'ui_click',
+      resource: 'ui',
+      description: `Clicked ${label}`,
+      details: {
+        label,
+        id: target.id || null,
+        href: target.getAttribute('href') || null,
+        role: target.getAttribute('role') || null,
+        section: target.closest('section')?.getAttribute('id') || null,
+        page: 'home'
+      }
+    });
+
+    if (now - lastToastRef.current > 900) {
+      lastToastRef.current = now;
+      showPremiumToast(`${label} updated`, 'success');
+    }
+  }, [logUiEvent]);
 
   // Effects
   useEffect(() => {
-    // Update live stats periodically
-    const interval = setInterval(() => {
-      setLiveStats(prev => ({
-        ...prev,
-        beds: Math.max(20, Math.min(60, prev.beds + Math.floor(Math.random() * 5) - 2)),
-        doctorsOnline: Math.max(10, Math.min(25, prev.doctorsOnline + Math.floor(Math.random() * 3) - 1)),
-        erWait: Math.max(5, Math.min(30, prev.erWait + Math.floor(Math.random() * 5) - 2)),
-        surgeries: Math.max(0, Math.min(8, prev.surgeries + Math.floor(Math.random() * 3) - 1)),
-      }));
-    }, 10000);
-    return () => clearInterval(interval);
+    const loadHome = async () => {
+      try {
+        const [home, directory] = await Promise.all([
+          apiRequest('/api/public/home'),
+          apiRequest('/api/public/doctors-directory')
+        ]);
+
+        const normalizedDoctors = normalizeDoctors(directory || []);
+        setDoctors(normalizedDoctors);
+        setServices(home?.services || []);
+        setArticles(home?.articles || []);
+        setTestimonials(home?.testimonials || []);
+        setInsuranceProviders(home?.insuranceProviders || []);
+        setWellnessPrograms(home?.wellnessPrograms || []);
+        setChallenges(home?.challenges || []);
+        setLeaderboard(home?.leaderboard || []);
+        setResearchStudies(home?.researchStudies || []);
+        setEmergencyServices(home?.emergencyServices || []);
+        setPatients(home?.patients || []);
+        setAppointments(home?.appointments || []);
+        setLabResults(home?.labResults || []);
+        setMedications(home?.medications || []);
+        setEquipment(home?.equipment || []);
+        setRooms(home?.rooms || []);
+        setStaff(home?.staff || []);
+
+        const stats = home?.liveStats || {};
+        setLiveStats({
+          beds: stats.beds ?? 0,
+          doctorsOnline: stats.doctors ?? 0,
+          erWait: stats.erWait ?? 0,
+          surgeries: stats.surgeries ?? 0,
+          alerts: stats.alerts ?? 0,
+          patientsToday: stats.patientsToday ?? 0,
+          appointmentsToday: stats.appointmentsToday ?? 0,
+          labTestsCompleted: stats.labTestsCompleted ?? 0,
+        });
+
+        const insightData = home?.insights || {};
+        setInsights({
+          erWaitForecast: insightData.erWaitForecast || [],
+          bedOccupancyTrend: insightData.bedOccupancyTrend || [],
+          readmissionRisk: insightData.readmissionRisk ?? 0,
+          surgeryVolume: insightData.surgeryVolume || [],
+        });
+
+        const derivedSlots = buildSlotsFromDoctors(normalizedDoctors);
+        if (derivedSlots.length) {
+          setSlots(derivedSlots);
+        }
+      } catch (error) {
+        console.error('Failed to load home data:', error);
+      }
+    };
+
+    loadHome();
   }, []);
 
   useEffect(() => {
-    // Rotate appointment slots
-    const interval = setInterval(() => {
-      setSlots(s => s.map(slot => ({ ...slot, free: Math.random() > 0.4 })));
-    }, 15000);
-    return () => clearInterval(interval);
+    const loadEngagements = async () => {
+      try {
+        const stats = await apiRequest('/api/engagements/stats');
+        setEngagementStats(stats || {});
+      } catch (error) {
+        // Non-blocking
+      }
+    };
+    loadEngagements();
+  }, []);
+
+  useEffect(() => {
+    const socket = io(
+      import.meta.env.VITE_API_BASE_URL ||
+      import.meta.env.VITE_API_URL ||
+      'http://localhost:5000'
+    );
+
+    socket.on('engagementUpdate', (payload = {}) => {
+      if (!payload?.key) return;
+      bumpEngagement(payload.key, payload.delta || 1);
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [bumpEngagement]);
+
+  useEffect(() => {
+    logUiEvent({
+      action: 'page_view',
+      resource: 'navigation',
+      description: 'Viewed home page',
+      details: { page: 'home' }
+    });
+  }, [logUiEvent]);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    apiRequest('/api/notifications', {}, token)
+      .then((items) => {
+        if (Array.isArray(items)) {
+          const mapped = items.map((item) => ({
+            id: item._id || item.id,
+            text: item.title || item.description || 'Notification',
+            type: item.type || 'info',
+            read: item.read || false,
+            timestamp: item.createdAt ? new Date(item.createdAt) : new Date()
+          }));
+          setNotifications(mapped);
+        }
+      })
+      .catch((error) => {
+        console.error('Failed to load notifications:', error);
+      });
+  }, []);
+
+  useEffect(() => {
+    const storedUser = localStorage.getItem('user');
+    if (!storedUser) return;
+    try {
+      const parsed = JSON.parse(storedUser);
+      setUser(parsed);
+      setPoints(parsed?.points || 0);
+    } catch (error) {
+      console.error('Failed to read stored user:', error);
+    }
   }, []);
 
   useEffect(() => {
@@ -2580,6 +2706,17 @@ export default function Hero() {
   const runSearch = (q) => {
     setSearchQ(q);
     if (!q) return setSearchResults([]);
+
+    const now = Date.now();
+    if (q.length >= 3 && now - lastSearchLogRef.current > 1500) {
+      lastSearchLogRef.current = now;
+      logUiEvent({
+        action: 'search',
+        resource: 'search',
+        description: 'Search query',
+        details: { query: q, page: 'home' }
+      });
+    }
     
     const ql = q.toLowerCase();
     const res = [];
@@ -2594,8 +2731,8 @@ export default function Hero() {
     });
     
     // Search services
-    defaultServices.filter(s => 
-      s.title.toLowerCase().includes(ql) || 
+    serviceCards.filter(s =>
+      s.title.toLowerCase().includes(ql) ||
       s.desc.toLowerCase().includes(ql)
     ).slice(0, 2).forEach(s => {
       res.push({ type: 'service', title: s.title, hint: s.desc });
@@ -2649,36 +2786,90 @@ export default function Hero() {
     toast.success('Parsed booking intent');
   };
 
-  const bookSlot = async (slot) => {
-    if (!slot.free) {
+  const handleConfirmBooking = () => {
+    if (!slots.length) {
+      toast.error('No slots available');
+      return;
+    }
+    bookSlot(slots[0], {
+      reason: nlInput,
+      type: nlParse?.telemedicine ? 'Telemedicine' : 'In-Person'
+    });
+  };
+
+  const bookSlot = async (slot, options = {}) => {
+    if (!slot?.free) {
       toast.error('Slot already booked');
       return;
     }
-    
-    setSlots(s => s.map(sl => sl.id === slot.id ? { ...sl, free: false } : sl));
-    toast.success(`Booked appointment at ${slot.time}`);
-    setPoints(p => p + 5);
-  };
 
-  const mockLogin = (role = 'patient') => {
-    const newUser = {
-      id: `USR-${Date.now()}`,
-      name: faker.person.fullName(),
-      email: faker.internet.email(),
-      role,
-      avatar: `https://i.pravatar.cc/150?img=${Math.floor(Math.random() * 70)}`,
-      phone: faker.phone.number(),
-      bloodGroup: faker.helpers.arrayElement(['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-']),
-      memberSince: faker.date.past({ years: 3 }).toISOString().slice(0, 10),
+    if (!user?.name || !user?.email) {
+      toast.error('Please login to book an appointment');
+      navigate('/login');
+      return;
+    }
+
+    const doctor = selectedDoctor || featuredDoctor;
+    if (!doctor) {
+      toast.error('No doctor available for booking');
+      return;
+    }
+
+    const slotValue = slot.iso || slot.datetime || (slot.date ? `${slot.date}T${slot.time}` : slot.time);
+
+    const payload = {
+      doctor: {
+        id: doctor.id,
+        name: doctor.name,
+        specialization: doctor.specialty || doctor.specialization || 'General',
+        experience: doctor.years || doctor.experience || 0,
+        rating: doctor.rating || 0,
+        fee: doctor.consultationFee || doctor.fees || 0,
+        languages: doctor.languages || [],
+        clinic: doctor.hospital || doctor.clinic || ''
+      },
+      slot: slotValue || slot,
+      type: options.type || (nlParse?.telemedicine ? 'Telemedicine' : 'In-Person'),
+      patient: {
+        name: user.name,
+        email: user.email,
+        phone: user.phone || ''
+      },
+      reason: options.reason || nlInput || 'General consultation',
+      insurance: options.insurance || {},
+      fee: doctor.consultationFee || doctor.fees || 500
     };
-    setUser(newUser);
-    setPoints(faker.number.int({ min: 100, max: 5000 }));
-    toast.success(`Logged in as ${role}`);
+
+    try {
+      await apiRequest('/api/appointments', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+
+      setSlots((prev) => prev.map((sl) => (sl.id === slot.id ? { ...sl, free: false } : sl)));
+      toast.success(`Booked appointment at ${slot.time || 'selected slot'}`);
+      setPoints((p) => p + 5);
+    } catch (error) {
+      toast.error('Failed to book appointment');
+    }
   };
 
-  const mockLogout = () => {
+  const handleLogin = () => {
+    navigate('/login');
+  };
+
+  const handleRegister = () => {
+    navigate('/register');
+  };
+
+  const handleLogout = () => {
     setUser(null);
     setPoints(0);
+    localStorage.removeItem('token');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('role');
+    localStorage.removeItem('user');
+    localStorage.removeItem('authToken');
     toast.success('Logged out successfully');
   };
 
@@ -2700,21 +2891,137 @@ export default function Hero() {
 
   const handleEnrollWellness = (program) => {
     setPoints(p => p + 10);
-    toast.success(`Enrolled in ${program.name}! +10 points`);
+    setWellnessPrograms((prev) =>
+      prev.map((p) =>
+        (p.id === program.id || p._id === program._id)
+          ? { ...p, enrolled: (p.enrolled || 0) + 1, joined: true }
+          : p
+      )
+    );
+    showPremiumToast(`Enrolled in ${program.name}! +10 points`, 'success');
+    postEngagement('wellness-enrollments', {
+      programId: program.id || program._id || '',
+      programName: program.name || program.title || ''
+    });
+    bumpEngagement('wellnessEnrollments', 1);
   };
 
   const handleJoinChallenge = (challenge) => {
     setPoints(p => p + 5);
-    toast.success(`Joined ${challenge.name}! +5 points`);
+    setChallenges((prev) =>
+      prev.map((c) =>
+        (c.id === challenge.id || c._id === challenge._id)
+          ? { ...c, participants: (c.participants || 0) + 1, joined: true }
+          : c
+      )
+    );
+    showPremiumToast(`Joined ${challenge.name}! +5 points`, 'success');
+    postEngagement('challenge-joins', {
+      challengeId: challenge.id || challenge._id || '',
+      challengeName: challenge.name || challenge.title || ''
+    });
+    bumpEngagement('challengeJoins', 1);
   };
 
   const handleRefillMedication = (medication) => {
-    toast.success(`Refill request sent for ${medication.name}`);
+    showPremiumToast(`Refill request sent for ${medication.name}`, 'success');
+    postEngagement('medication-refills', {
+      medicationId: medication.id || medication._id || '',
+      medicationName: medication.name || '',
+      dosage: medication.dosage || '',
+      form: medication.form || ''
+    });
+    bumpEngagement('medicationRefills', 1);
   };
 
   const handleReadArticle = (article) => {
     setPoints(p => p + 2);
-    toast.success(`Reading: ${article.title} +2 points`);
+    showPremiumToast(`Reading: ${article.title} +2 points`, 'success');
+    postEngagement('article-reads', {
+      articleId: article.id || article._id || '',
+      title: article.title || '',
+      category: article.category || ''
+    });
+    bumpEngagement('articleReads', 1);
+  };
+
+  const handleSymptomAnalyze = async (payload) => {
+    const ok = await postEngagement('symptom-checks', payload);
+    if (ok) {
+      bumpEngagement('symptomChecks', 1);
+      showPremiumToast('Symptom analysis saved', 'success');
+      return true;
+    } else {
+      showPremiumToast('Symptom analysis failed to save', 'warning');
+      return false;
+    }
+  };
+
+  const handleMoodLog = async (payload) => {
+    const ok = await postEngagement('mood-logs', payload);
+    if (ok) {
+      bumpEngagement('moodLogs', 1);
+      showPremiumToast('Mood logged to your wellness timeline', 'success');
+      return true;
+    } else {
+      showPremiumToast('Mood log failed to save', 'warning');
+      return false;
+    }
+  };
+
+  const handleReminderToggle = (payload) => {
+    postEngagement('reminder-logs', payload);
+    bumpEngagement('reminderLogs', 1);
+    showPremiumToast('Medication reminder updated', 'success');
+  };
+
+  const handleFavoriteDoctor = (doctor) => {
+    const key = "favoriteDoctors";
+    const entry = {
+      id: doctor.id,
+      name: doctor.name,
+      specialty: doctor.specialty,
+      avatar: doctor.avatar
+    };
+    try {
+      const existing = JSON.parse(localStorage.getItem(key) || "[]");
+      if (existing.some((item) => item.id === doctor.id)) {
+        toast("Already in favorites");
+        return;
+      }
+      localStorage.setItem(key, JSON.stringify([entry, ...existing].slice(0, 25)));
+      showPremiumToast("Added to favorites", 'success');
+    } catch {
+      localStorage.setItem(key, JSON.stringify([entry]));
+      showPremiumToast("Added to favorites", 'success');
+    }
+    postEngagement('favorites', {
+      doctorId: doctor.id || doctor._id || '',
+      doctorName: doctor.name || '',
+      specialty: doctor.specialty || ''
+    });
+    bumpEngagement('favorites', 1);
+  };
+
+  const handleAddMedication = () => {
+    navigate('/pharmacy');
+  };
+
+  const handleInsuranceView = (insurance) => {
+    setSelectedInsurance(insurance);
+    setInsuranceOpen(true);
+    postEngagement('insurance-views', {
+      insuranceId: insurance.id || insurance._id || '',
+      name: insurance.name || '',
+      network: insurance.network || '',
+      coverage: insurance.coverage || ''
+    });
+    bumpEngagement('insuranceViews', 1);
+    showPremiumToast(`${insurance.name} details opened`, 'success');
+  };
+
+  const openInfoModal = (title, body) => {
+    setInfoModal({ open: true, title, body });
   };
 
   const addNotification = (notification) => {
@@ -2761,26 +3068,26 @@ export default function Hero() {
         <LanguageProvider>
           <NotificationProvider>
             <div 
-              className={`min-h-screen ${dark ? 'dark' : ''} ${fontSizeClasses[fontSize]} ${contrastClasses}`}
+              className={`min-h-screen dark ${fontSizeClasses[fontSize]} ${contrastClasses}`}
               dir={isRTL ? 'rtl' : 'ltr'}
             >
-              <div className="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen">
-                <Toaster position="top-right" />
+              <div className="bg-charcoal-950 text-white min-h-screen" onClickCapture={handleUiClickCapture}>
+                <Toaster position="top-right" containerStyle={{ zIndex: 99999 }} />
 
                 {/* ==================== HEADER ==================== */}
-                <header className="sticky top-0 z-40 backdrop-blur-lg bg-white/80 dark:bg-gray-900/80 border-b border-gray-200 dark:border-gray-800">
+                <header className="sticky top-0 z-40 backdrop-blur-lg bg-charcoal-950/80 border-b border-white/10">
                   <div className="max-w-7xl mx-auto px-4 py-3">
                     <div className="flex items-center justify-between gap-4">
                       {/* Logo */}
                       <div className="flex items-center gap-3">
-                        <div className="bg-gradient-to-br from-green-500 to-blue-600 text-white p-2.5 rounded-xl shadow-lg">
+                        <div className="bg-gradient-to-br from-accent-500 to-primary-700 text-charcoal-950 p-2.5 rounded-xl shadow-lg border border-accent-300/50">
                           <ShieldCheck className="w-6 h-6" />
                         </div>
                         <div>
-                          <h1 className="font-bold text-xl bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
+                          <h1 className="font-bold text-xl bg-gradient-to-r from-accent-300 to-white bg-clip-text text-transparent font-display">
                             Medicore Hospital
                           </h1>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                          <p className="text-xs text-white/60">
                             24/7 Emergency & Telehealth
                           </p>
                         </div>
@@ -2788,25 +3095,25 @@ export default function Hero() {
 
                       {/* Search Bar */}
                       <div className="flex-1 max-w-2xl mx-4 hidden md:block relative">
-                        <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 rounded-xl px-4 py-2.5 border border-transparent focus-within:border-green-500 focus-within:ring-2 focus-within:ring-green-500/20 transition-all">
-                          <Search className="w-5 h-5 text-gray-400" />
+                        <div className="flex items-center gap-2 bg-charcoal-900/60 rounded-xl px-4 py-2.5 border border-white/10 focus-within:border-accent-300 focus-within:ring-2 focus-within:ring-accent-300/20 transition-all">
+                          <Search className="w-5 h-5 text-white/50" />
                           <input
                             id="search-input"
                             value={searchQ}
                             onChange={(e) => runSearch(e.target.value)}
                             placeholder={t('search')}
-                            className="flex-1 bg-transparent outline-none text-sm"
+                            className="flex-1 bg-transparent outline-none text-sm text-white placeholder:text-white/40"
                             aria-label="Search"
                           />
-                          <kbd className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 text-xs text-gray-400 bg-gray-200 dark:bg-gray-700 rounded">
+                          <kbd className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 text-xs text-white/50 bg-charcoal-900/70 rounded">
                             ⌘K
                           </kbd>
                           <button
                             onClick={startSpeechSearch}
-                            className="p-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                            className="p-1.5 rounded-lg hover:bg-charcoal-900/70 transition-colors"
                             title="Voice search"
                           >
-                            <Mic className="w-4 h-4 text-gray-500" />
+                            <Mic className="w-4 h-4 text-white/60" />
                           </button>
                         </div>
                         
@@ -2822,7 +3129,7 @@ export default function Hero() {
                         <Tooltip content={dark ? 'Light Mode' : 'Dark Mode'}>
                           <button
                             onClick={() => setDark(!dark)}
-                            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                            className="p-2 rounded-lg hover:bg-charcoal-900/70 transition-colors"
                             aria-label="Toggle theme"
                           >
                             {dark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
@@ -2833,7 +3140,7 @@ export default function Hero() {
                         <Tooltip content="Adjust font size">
                           <button
                             onClick={() => setFontSize(f => f === 'base' ? 'lg' : f === 'lg' ? 'xl' : 'base')}
-                            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors font-bold"
+                            className="p-2 rounded-lg hover:bg-charcoal-900/70 transition-colors font-bold"
                           >
                             A{fontSize === 'base' ? '' : fontSize === 'lg' ? '+' : '++'}
                           </button>
@@ -2843,7 +3150,7 @@ export default function Hero() {
                         <Tooltip content="Change language">
                           <button
                             onClick={() => setLang(l => l === 'en' ? 'ur' : l === 'ur' ? 'ar' : l === 'ar' ? 'zh' : 'en')}
-                            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                            className="p-2 rounded-lg hover:bg-charcoal-900/70 transition-colors"
                           >
                             <Globe className="w-5 h-5" />
                           </button>
@@ -2853,7 +3160,7 @@ export default function Hero() {
                         <Tooltip content="Toggle high contrast">
                           <button
                             onClick={() => setHighContrast(!highContrast)}
-                            className={`p-2 rounded-lg transition-colors ${highContrast ? 'bg-yellow-100 text-yellow-700' : 'hover:bg-gray-100 dark:hover:bg-gray-800'}`}
+                            className={`p-2 rounded-lg transition-colors ${highContrast ? 'bg-yellow-100 text-yellow-700' : 'hover:bg-charcoal-900/70'}`}
                           >
                             <Eye className="w-5 h-5" />
                           </button>
@@ -2863,7 +3170,7 @@ export default function Hero() {
                         <Tooltip content="Sign language interpreter">
                           <button
                             onClick={() => setShowSignLanguage(!showSignLanguage)}
-                            className={`p-2 rounded-lg transition-colors ${showSignLanguage ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-100 dark:hover:bg-gray-800'}`}
+                            className={`p-2 rounded-lg transition-colors ${showSignLanguage ? 'bg-blue-100 text-blue-700' : 'hover:bg-charcoal-900/70'}`}
                           >
                             <Hand className="w-5 h-5" />
                           </button>
@@ -2873,36 +3180,36 @@ export default function Hero() {
                         <div className="relative">
                           <button
                             onClick={() => setNotificationsOpen(!notificationsOpen)}
-                            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors relative"
+                            className="p-2 rounded-lg hover:bg-charcoal-900/70 transition-colors relative"
                           >
                             <Bell className="w-5 h-5" />
                             {notifications.filter(n => !n.read).length > 0 && (
-                              <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                              <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500/40 text-white text-xs rounded-full flex items-center justify-center">
                                 {notifications.filter(n => !n.read).length}
                               </span>
                             )}
                           </button>
                           
                           {notificationsOpen && (
-                            <div className="absolute top-full right-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-xl shadow-xl border dark:border-gray-700 overflow-hidden z-50">
-                              <div className="p-4 border-b dark:border-gray-700 flex items-center justify-between">
+                            <div className="absolute top-full right-0 mt-2 w-80 bg-charcoal-950 rounded-xl shadow-xl border border-white/10 overflow-hidden z-50">
+                              <div className="p-4 border-b border-white/10 flex items-center justify-between">
                                 <h3 className="font-semibold">{t('notifications')}</h3>
-                                <button onClick={clearAllNotifications} className="text-sm text-gray-500 hover:text-gray-700">
+                                <button onClick={clearAllNotifications} className="text-sm text-white/60 hover:text-white">
                                   Clear all
                                 </button>
                               </div>
                               <div className="max-h-96 overflow-y-auto">
                                 {notifications.length === 0 ? (
-                                  <div className="p-8 text-center text-gray-500">
-                                    <Bell className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                                  <div className="p-8 text-center text-white/60">
+                                    <Bell className="w-12 h-12 mx-auto mb-2 text-white/30" />
                                     <p>No notifications</p>
                                   </div>
                                 ) : (
                                   notifications.map((notification) => (
                                     <div
                                       key={notification.id}
-                                      className={`p-4 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer ${
-                                        !notification.read ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                                      className={`p-4 border-b border-white/10 hover:bg-charcoal-900/60 hover:bg-charcoal-900/60 cursor-pointer ${
+                                        !notification.read ? 'bg-primary-400/15 dark:bg-blue-900/20' : ''
                                       }`}
                                       onClick={() => markNotificationAsRead(notification.id)}
                                     >
@@ -2920,13 +3227,13 @@ export default function Hero() {
                                         </div>
                                         <div className="flex-1">
                                           <p className="text-sm">{notification.text}</p>
-                                          <p className="text-xs text-gray-500 mt-1">
+                                          <p className="text-xs text-white/60 mt-1">
                                             {new Date(notification.timestamp).toLocaleString()}
                                           </p>
                                         </div>
                                         <button
                                           onClick={(e) => { e.stopPropagation(); removeNotification(notification.id); }}
-                                          className="text-gray-400 hover:text-gray-600"
+                                          className="text-white/50 hover:text-white/70"
                                         >
                                           <X className="w-4 h-4" />
                                         </button>
@@ -2944,23 +3251,23 @@ export default function Hero() {
                           <div className="flex items-center gap-3">
                             <div className="hidden sm:block text-right">
                               <p className="text-sm font-medium">{user.name}</p>
-                              <p className="text-xs text-gray-500 flex items-center gap-1">
+                              <p className="text-xs text-white/60 flex items-center gap-1">
                                 <Award className="w-3 h-3 text-yellow-500" />
                                 {points.toLocaleString()} points
                               </p>
                             </div>
                             <Avatar src={user.avatar} alt={user.name} size="md" status="online" />
-                            <Button variant="ghost" size="sm" onClick={mockLogout}>
+                            <Button variant="ghost" size="sm" onClick={handleLogout}>
                               <LogOut className="w-4 h-4" />
                             </Button>
                           </div>
                         ) : (
                           <div className="flex items-center gap-2">
-                            <Button variant="ghost" size="sm" onClick={() => mockLogin('patient')}>
+                            <Button variant="ghost" size="sm" onClick={handleLogin}>
                               {t('login')}
                             </Button>
-                            <Button variant="primary" size="sm" onClick={() => mockLogin('doctor')}>
-                              Doctor Login
+                            <Button variant="primary" size="sm" onClick={handleRegister}>
+                              Create Account
                             </Button>
                           </div>
                         )}
@@ -2969,16 +3276,16 @@ export default function Hero() {
 
                     {/* Mobile Search */}
                     <div className="mt-3 md:hidden">
-                      <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 rounded-xl px-4 py-2.5">
-                        <Search className="w-5 h-5 text-gray-400" />
+                      <div className="flex items-center gap-2 bg-charcoal-900/60 rounded-xl px-4 py-2.5">
+                        <Search className="w-5 h-5 text-white/50" />
                         <input
                           value={searchQ}
                           onChange={(e) => runSearch(e.target.value)}
                           placeholder={t('search')}
-                          className="flex-1 bg-transparent outline-none text-sm"
+                          className="flex-1 bg-transparent outline-none text-sm text-white placeholder:text-white/40"
                         />
                         <button onClick={startSpeechSearch}>
-                          <Mic className="w-4 h-4 text-gray-500" />
+                          <Mic className="w-4 h-4 text-white/60" />
                         </button>
                       </div>
                     </div>
@@ -2991,112 +3298,159 @@ export default function Hero() {
                 {/* ==================== MAIN CONTENT ==================== */}
                 <main className="pb-20">
                   {/* Hero Section */}
-                  <section className="bg-gradient-to-br from-green-600 via-green-700 to-blue-700 text-white py-16 relative overflow-hidden">
-                    {/* Background Pattern */}
-                    <div className="absolute inset-0 opacity-10">
-                      <div className="absolute top-0 left-0 w-72 h-72 bg-white rounded-full blur-3xl" />
-                      <div className="absolute bottom-0 right-0 w-96 h-96 bg-blue-300 rounded-full blur-3xl" />
-                    </div>
+                  <section className="relative overflow-hidden text-white py-24">
+                    {/* Cinematic Gradient Base */}
+                    <div className="absolute inset-0 bg-gradient-to-br from-charcoal-950 via-charcoal-900 to-black animate-gradient-x"></div>
+
+                    {/* Gold Veil + Emerald Depth */}
+                    <div className="absolute inset-0 bg-[radial-gradient(60%_60%_at_20%_20%,rgba(212,175,55,0.18),rgba(0,0,0,0))]"></div>
+                    <div className="absolute inset-0 bg-[radial-gradient(70%_70%_at_80%_20%,rgba(22,163,74,0.18),rgba(0,0,0,0))]"></div>
+
+                    {/* Noise + Vignette for premium depth */}
+                    <div
+                      className="absolute inset-0 opacity-40 mix-blend-soft-light"
+                      style={{
+                        backgroundImage:
+                          'repeating-linear-gradient(0deg, rgba(255,255,255,0.04) 0, rgba(255,255,255,0.04) 1px, transparent 1px, transparent 3px)',
+                      }}
+                    />
+                    <div className="absolute inset-0 bg-[radial-gradient(120%_80%_at_50%_20%,rgba(255,255,255,0.06),rgba(0,0,0,0.8))]"></div>
+
+                    {/* Floating glow orbs */}
+                    <div className="absolute top-16 right-16 w-40 h-40 bg-accent-400/20 rounded-full blur-3xl animate-float shadow-lg shadow-accent-500/20"></div>
+                    <div className="absolute bottom-20 left-10 w-28 h-28 bg-primary-400/20 rounded-full blur-2xl animate-float-delayed shadow-lg shadow-primary-500/20"></div>
+                    <div className="absolute top-1/2 right-1/3 w-20 h-20 bg-accent-300/20 rounded-full blur-2xl animate-float shadow-lg shadow-accent-500/20" style={{ animationDelay: '1s' }}></div>
 
                     <div className="max-w-7xl mx-auto px-4 relative z-10">
-                      <div className="grid lg:grid-cols-2 gap-12 items-center">
-                        <div>
-                          <div className="flex items-center gap-2 mb-4">
-                            <Badge className="bg-white/20 text-white border-0">
-                              <Zap className="w-3 h-3 mr-1" /> AI-Powered
-                            </Badge>
-                            <Badge className="bg-white/20 text-white border-0">
-                              <ShieldCheck className="w-3 h-3 mr-1" /> HIPAA Compliant
-                            </Badge>
+                      <div className="grid lg:grid-cols-5 gap-8 items-center">
+                        {/* Left content with asymmetric layout */}
+                        <div className="lg:col-span-3 relative">
+                          <div className="absolute -inset-6 rounded-[28px] bg-gradient-to-br from-white/5 via-white/0 to-white/5 border border-white/10 shadow-[0_20px_80px_rgba(0,0,0,0.45)]"></div>
+                          <div className="absolute -inset-10 rounded-[36px] border border-accent-400/20"></div>
+                          <div className="relative p-2">
+                          {/* Overlapping badge container */}
+                          <div className="flex items-center gap-2 mb-6 -ml-2">
+                            <div className="bg-charcoal-950/70 backdrop-blur-sm rounded-full px-4 py-2 border border-accent-400/40 shadow-lg">
+                              <Badge className="bg-transparent text-white border-0">
+                                <Zap className="w-3 h-3 mr-1" /> AI-Powered
+                              </Badge>
+                            </div>
+                            <div className="bg-charcoal-950/70 backdrop-blur-sm rounded-full px-4 py-2 border border-accent-400/40 shadow-lg -ml-4">
+                              <Badge className="bg-transparent text-white border-0">
+                                <ShieldCheck className="w-3 h-3 mr-1" /> HIPAA Compliant
+                              </Badge>
+                            </div>
                           </div>
 
-                          <h1 className="text-4xl lg:text-5xl font-extrabold leading-tight mb-4">
+                          <h1 className="text-5xl lg:text-6xl font-extrabold leading-tight mb-6 max-w-2xl font-display tracking-tight">
                             {t('welcome')}
                           </h1>
-                          <p className="text-lg text-white/80 mb-6 max-w-xl">
-                            Experience next-generation healthcare with AI-assisted diagnostics, 
+                          <p className="text-xl text-white/90 mb-8 max-w-xl leading-relaxed">
+                            Experience next-generation healthcare with AI-assisted diagnostics,
                             telemedicine, predictive analytics, and personalized wellness programs.
                           </p>
 
-                          <div className="flex flex-wrap gap-3 mb-8">
+                          <div className="flex flex-wrap gap-4 mb-10">
                             <Button
                               variant="secondary"
                               size="lg"
-                              className="bg-white text-green-700 hover:bg-gray-100"
+                              className="bg-accent-500 text-charcoal-950 hover:bg-accent-400 shadow-[0_18px_40px_rgba(212,175,55,0.35)] hover:shadow-[0_24px_60px_rgba(212,175,55,0.45)] transform hover:scale-[1.02] transition-all duration-300 relative overflow-hidden group border border-accent-300/60"
                               onClick={() => navigate('/book-appointment')}
                             >
-                              <Calendar className="w-5 h-5" />
+                              <div className="absolute inset-0 bg-gradient-to-r from-accent-200/0 via-accent-200/40 to-accent-200/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                              <Calendar className="w-5 h-5 relative z-10" />
                               {t('bookAppointment')}
                             </Button>
                             <Button
                               variant="outline"
                               size="lg"
-                              className="border-white text-white hover:bg-white/10"
+                              className="border-white/20 text-white hover:bg-charcoal-900/70 backdrop-blur-sm shadow-xl hover:shadow-2xl transform hover:scale-[1.02] transition-all duration-300 relative overflow-hidden group"
                               onClick={() => setChatOpen(true)}
                             >
-                              <MessageSquare className="w-5 h-5" />
+                              <div className="absolute inset-0 bg-gradient-to-r from-accent-300/0 via-accent-200/20 to-primary-200/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                              <MessageSquare className="w-5 h-5 relative z-10" />
                               AI Assistant
                             </Button>
                             <Button
                               variant="ghost"
                               size="lg"
-                              className="text-white hover:bg-white/10"
+                              className="text-white hover:bg-charcoal-900/70 backdrop-blur-sm shadow-xl hover:shadow-2xl transform hover:scale-[1.02] transition-all duration-300 relative overflow-hidden group"
                               onClick={() => ttsSpeak('Welcome to Medicore Hospital. How can we help you today?')}
                             >
-                              <Volume2 className="w-5 h-5" />
+                              <div className="absolute inset-0 bg-gradient-to-r from-accent-300/0 via-accent-200/15 to-primary-200/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                              <Volume2 className="w-5 h-5 relative z-10" />
                               Listen
                             </Button>
                           </div>
 
-                          {/* Compliance Badges */}
+                          {/* Enhanced compliance badges with staggered layout */}
                           <div className="flex flex-wrap gap-3">
-                            {['ISO 9001', 'NABH', 'JCI', 'HIPAA', 'SehatCard'].map((badge) => (
-                              <span key={badge} className="px-3 py-1 bg-white/10 rounded-full text-sm">
+                            {['ISO 9001', 'NABH', 'JCI', 'HIPAA', 'SehatCard'].map((badge, index) => (
+                              <span
+                                key={badge}
+                                className="px-4 py-2 bg-charcoal-950/60 backdrop-blur-sm rounded-full text-sm border border-accent-300/40 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 text-white/90"
+                                style={{ transform: `translateY(${index * 2}px)` }}
+                              >
                                 {badge}
                               </span>
                             ))}
                           </div>
+                          </div>
                         </div>
 
-                        {/* Featured Doctor Card */}
-                        <div className="hidden lg:block">
-                          <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20">
-                            <div className="flex items-center gap-4 mb-4">
-                              <Avatar src={doctors[0].avatar} alt={doctors[0].name} size="xl" status="online" />
+                        {/* Featured Doctor Card with glassmorphism */}
+                        <div className="lg:col-span-2 relative">
+                          <div className="bg-charcoal-900/70 backdrop-blur-xl rounded-3xl p-8 border border-white/20 shadow-2xl hover:shadow-3xl transition-all duration-500 transform hover:scale-105 relative overflow-hidden">
+                            {/* Glassmorphism gradient border */}
+                            <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-cyan-400/20 via-violet-400/20 to-gold-400/20 opacity-50"></div>
+                            {/* Floating accent elements with neon glow */}
+                            <div className="absolute -top-4 -right-4 w-8 h-8 bg-cyan-400/40 rounded-full blur-sm shadow-lg shadow-cyan-500/50 animate-pulse-slow" />
+                            <div className="absolute -bottom-4 -left-4 w-6 h-6 bg-violet-400/40 rounded-full blur-sm shadow-lg shadow-violet-500/50 animate-pulse-slow" style={{ animationDelay: '1s' }} />
+
+                            <div className="flex items-center gap-4 mb-6">
+                              <div className="relative">
+                                <Avatar src={safeDoc.avatar} alt={safeDoc.name} size="xl" status="online" />
+                                <div className="absolute -bottom-2 -right-2 w-6 h-6 bg-primary-500/40 rounded-full flex items-center justify-center shadow-lg">
+                                  <CheckCircle className="w-4 h-4 text-white" />
+                                </div>
+                              </div>
                               <div>
-                                <h3 className="font-semibold text-lg">{doctors[0].name}</h3>
-                                <p className="text-white/70">{doctors[0].specialty}</p>
-                                <div className="flex items-center gap-2 mt-1">
-                                  <Star className="w-4 h-4 text-yellow-400 fill-current" />
-                                  <span>{doctors[0].rating}</span>
-                                  <span className="text-white/50">• {doctors[0].years} years exp</span>
+                                <h3 className="font-semibold text-xl">{safeDoc.name}</h3>
+                                <p className="text-white/80">{safeDoc.specialty}</p>
+                                <div className="flex items-center gap-2 mt-2">
+                                  <div className="flex items-center gap-1">
+                                    <Star className="w-4 h-4 text-yellow-400 fill-current" />
+                                    <span className="font-medium">{safeDoc.rating}</span>
+                                  </div>
+                                  <span className="text-white/60">•</span>
+                                  <span className="text-white/70">{safeDoc.years} years exp</span>
                                 </div>
                               </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-3 mb-4">
-                              <div className="bg-white/10 rounded-lg p-3 text-center">
-                                <p className="text-2xl font-bold">{doctors[0].reviewCount}</p>
+                            <div className="grid grid-cols-2 gap-4 mb-6">
+                              <div className="bg-charcoal-900/70 backdrop-blur-sm rounded-xl p-4 text-center border border-white/10">
+                                <p className="text-2xl font-bold">{safeDoc.reviewCount}</p>
                                 <p className="text-xs text-white/70">Reviews</p>
                               </div>
-                              <div className="bg-white/10 rounded-lg p-3 text-center">
-                                <p className="text-2xl font-bold">{formatCurrency(doctors[0].consultationFee)}</p>
+                              <div className="bg-charcoal-900/70 backdrop-blur-sm rounded-xl p-4 text-center border border-white/10">
+                                <p className="text-2xl font-bold">{formatCurrency(safeDoc.consultationFee)}</p>
                                 <p className="text-xs text-white/70">Consultation</p>
                               </div>
                             </div>
 
-                            <div className="flex gap-2">
+                            <div className="flex gap-3">
                               <Button
                                 variant="secondary"
-                                className="flex-1 bg-white text-green-700"
-                                onClick={() => handleBookDoctor(doctors[0])}
+                                className="flex-1 bg-accent-500 text-charcoal-950 hover:bg-charcoal-900/60 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300"
+                                onClick={() => handleBookDoctor(safeDoc)}
                               >
                                 Book Now
                               </Button>
                               <Button
                                 variant="ghost"
-                                className="text-white border border-white/30"
-                                onClick={() => handleStartVideoCall(doctors[0])}
+                                className="text-white border border-white/40 hover:bg-charcoal-900/70 backdrop-blur-sm shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300"
+                                onClick={() => handleStartVideoCall(safeDoc)}
                               >
                                 <Video className="w-4 h-4" />
                               </Button>
@@ -3157,20 +3511,20 @@ export default function Hero() {
                   <section className="py-8 max-w-7xl mx-auto px-4">
                     <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                       {[
-                        { icon: <Calendar className="w-6 h-6" />, label: 'Book Appointment', color: 'green', action: () => navigate('/book-appointment') },
-                        { icon: <Video className="w-6 h-6" />, label: 'Telemedicine', color: 'blue', action: () => navigate('/Diagnostic') },
-                        { icon: <FileText className="w-6 h-6" />, label: 'Home Healthcare', color: 'purple', action: () => navigate('/home-healthcare') },
-                        { icon: <Pill className="w-6 h-6" />, label: 'Pharmacy', color: 'orange', action: () => navigate('/pharmacy') },
-                        { icon: <AlertTriangle className="w-6 h-6" />, label: 'Emergency', color: 'red', action: () => navigate('/emergency') },
-                        { icon: <MessageSquare className="w-6 h-6" />, label: 'AI Assistant', color: 'cyan', action: () => setChatOpen(true) },
+                        { icon: <Calendar className="w-6 h-6" />, label: 'Book Appointment', iconClass: 'bg-accent-500/20 text-accent-300 ring-1 ring-accent-400/30', action: () => navigate('/book-appointment') },
+                        { icon: <Video className="w-6 h-6" />, label: 'Telemedicine', iconClass: 'bg-primary-500/20 text-primary-300 ring-1 ring-primary-400/30', action: () => navigate('/Diagnostic') },
+                        { icon: <FileText className="w-6 h-6" />, label: 'Home Healthcare', iconClass: 'bg-accent-400/15 text-accent-200 ring-1 ring-accent-300/30', action: () => navigate('/home-healthcare') },
+                        { icon: <Pill className="w-6 h-6" />, label: 'Pharmacy', iconClass: 'bg-primary-400/15 text-primary-200 ring-1 ring-primary-300/30', action: () => navigate('/pharmacy') },
+                        { icon: <AlertTriangle className="w-6 h-6" />, label: 'Emergency', iconClass: 'bg-accent-500/20 text-accent-200 ring-1 ring-accent-400/30', action: () => navigate('/emergency') },
+                        { icon: <MessageSquare className="w-6 h-6" />, label: 'AI Assistant', iconClass: 'bg-primary-500/20 text-primary-200 ring-1 ring-primary-400/30', action: () => setChatOpen(true) },
                       ].map((item, i) => (
                         <Card
                           key={i}
                           hover
-                          className="p-4 text-center cursor-pointer group"
+                          className="p-4 text-center cursor-pointer group bg-charcoal-950/40 border border-white/10"
                           onClick={item.action}
                         >
-                          <div className={`w-12 h-12 mx-auto rounded-xl bg-${item.color}-100 dark:bg-${item.color}-900/30 text-${item.color}-600 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform`}>
+                          <div className={`w-12 h-12 mx-auto rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform ${item.iconClass}`}>
                             {item.icon}
                           </div>
                           <p className="text-sm font-medium">{item.label}</p>
@@ -3179,26 +3533,56 @@ export default function Hero() {
                     </div>
                   </section>
 
+                  {/* Engagement Highlights */}
+                  <section className="py-6 max-w-7xl mx-auto px-4">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      {[
+                        { label: 'Favorites', value: engagementStats.favorites, icon: <Heart className="w-5 h-5" /> },
+                        { label: 'Article Reads', value: engagementStats.articleReads, icon: <BookOpen className="w-5 h-5" /> },
+                        { label: 'Wellness Enrollments', value: engagementStats.wellnessEnrollments, icon: <Sparkles className="w-5 h-5" /> },
+                        { label: 'Challenges Joined', value: engagementStats.challengeJoins, icon: <Trophy className="w-5 h-5" /> },
+                        { label: 'Refill Requests', value: engagementStats.medicationRefills, icon: <Pill className="w-5 h-5" /> },
+                        { label: 'Mood Logs', value: engagementStats.moodLogs, icon: <Smile className="w-5 h-5" /> },
+                        { label: 'Symptom Checks', value: engagementStats.symptomChecks, icon: <Stethoscope className="w-5 h-5" /> },
+                        { label: 'Insurance Views', value: engagementStats.insuranceViews, icon: <Shield className="w-5 h-5" /> },
+                      ].map((item) => (
+                        <Card key={item.label} className="p-4 flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-charcoal-900/70 border border-white/10 flex items-center justify-center text-accent-200">
+                            {item.icon}
+                          </div>
+                          <div>
+                            <p className="text-xs text-white/60">{item.label}</p>
+                            <p className="text-xl font-semibold">{item.value ?? 0}</p>
+                          </div>
+                        </Card>
+                      ))}
+                    </div>
+                  </section>
+
                   {/* Services Section */}
-                  <section className="py-12 bg-gray-100 dark:bg-gray-800/50">
+                  <section className="py-12 bg-charcoal-950/80 text-white">
                     <div className="max-w-7xl mx-auto px-4">
                       <div className="flex items-center justify-between mb-8">
                         <div>
                           <h2 className="text-2xl font-bold">{t('ourServices')}</h2>
-                          <p className="text-gray-500 mt-1">Comprehensive healthcare solutions</p>
+                          <p className="text-white/60 mt-1">Comprehensive healthcare solutions</p>
                         </div>
-                        <Button variant="outline">
+                        <Button
+                          variant="outline"
+                          className="border-accent-300/40 text-accent-100 hover:bg-charcoal-900/70"
+                          onClick={() => navigate('/services')}
+                        >
                           View All <ChevronRight className="w-4 h-4" />
                         </Button>
                       </div>
 
                       <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                        {defaultServices.map((service) => (
-                          <Card key={service.key} hover className="p-6 group">
+                        {serviceCards.map((service) => (
+                          <Card key={service.key || service.id || service.title} hover className="p-6 group bg-charcoal-900/60 border border-white/10">
                             <div className="text-4xl mb-4">{service.icon}</div>
                             <h3 className="font-semibold text-lg mb-2">{service.title}</h3>
-                            <p className="text-sm text-gray-500 mb-4">{service.desc}</p>
-                            <Button variant="ghost" size="sm" className="group-hover:text-green-600" onClick={() => navigate('/services')}>
+                            <p className="text-sm text-white/60 mb-4">{service.desc}</p>
+                            <Button variant="ghost" size="sm" className="group-hover:text-accent-300" onClick={() => navigate('/services')}>
                               Learn more <ChevronRight className="w-4 h-4" />
                             </Button>
                           </Card>
@@ -3217,7 +3601,7 @@ export default function Hero() {
                             <Brain className="w-5 h-5 text-purple-500" />
                             Smart Booking
                           </h3>
-                          <p className="text-gray-500 mb-4">
+                          <p className="text-white/60 mb-4">
                             Type naturally like "Book Cardiology tomorrow at 10am" or use voice input.
                           </p>
 
@@ -3236,26 +3620,26 @@ export default function Hero() {
                             </div>
 
                             {nlParse && (
-                              <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-xl border border-green-200 dark:border-green-800">
+                              <div className="p-4 bg-primary-500/15 dark:bg-green-900/20 rounded-xl border border-primary-400/30 dark:border-green-800">
                                 <h4 className="font-medium mb-2 flex items-center gap-2">
                                   <CheckCircle className="w-4 h-4 text-green-600" />
                                   Parsed Booking Intent
                                 </h4>
                                 <div className="grid grid-cols-2 gap-2 text-sm">
                                   <div>
-                                    <span className="text-gray-500">Specialty:</span>
+                                    <span className="text-white/60">Specialty:</span>
                                     <span className="ml-2 font-medium">{nlParse.specialty || '—'}</span>
                                   </div>
                                   <div>
-                                    <span className="text-gray-500">Date:</span>
+                                    <span className="text-white/60">Date:</span>
                                     <span className="ml-2 font-medium">{nlParse.date || '—'}</span>
                                   </div>
                                   <div>
-                                    <span className="text-gray-500">Time:</span>
+                                    <span className="text-white/60">Time:</span>
                                     <span className="ml-2 font-medium">{nlParse.time || '—'}</span>
                                   </div>
                                   <div>
-                                    <span className="text-gray-500">Type:</span>
+                                    <span className="text-white/60">Type:</span>
                                     <span className="ml-2 font-medium">
                                       {nlParse.telemedicine ? 'Telemedicine' : 'In-Person'}
                                     </span>
@@ -3266,7 +3650,7 @@ export default function Hero() {
                                     <AlertTriangle className="w-3 h-3 mr-1" /> Urgent
                                   </Badge>
                                 )}
-                                <Button variant="primary" size="sm" className="mt-4 w-full">
+                                <Button variant="primary" size="sm" className="mt-4 w-full" onClick={handleConfirmBooking}>
                                   Confirm Booking
                                 </Button>
                               </div>
@@ -3274,12 +3658,12 @@ export default function Hero() {
 
                             {/* Selected Doctor */}
                             {selectedDoctor && (
-                              <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
+                              <div className="p-4 bg-primary-400/15 dark:bg-blue-900/20 rounded-xl">
                                 <div className="flex items-center gap-3">
                                   <Avatar src={selectedDoctor.avatar} alt={selectedDoctor.name} size="lg" />
                                   <div>
                                     <p className="font-medium">{selectedDoctor.name}</p>
-                                    <p className="text-sm text-gray-500">{selectedDoctor.specialty}</p>
+                                    <p className="text-sm text-white/60">{selectedDoctor.specialty}</p>
                                   </div>
                                   <Button
                                     variant="ghost"
@@ -3301,7 +3685,7 @@ export default function Hero() {
                             <Clock className="w-5 h-5 text-blue-500" />
                             Available Slots
                           </h3>
-                          <p className="text-gray-500 mb-4">
+                          <p className="text-white/60 mb-4">
                             Real-time availability • Updates every 15 seconds
                           </p>
 
@@ -3313,8 +3697,8 @@ export default function Hero() {
                                 disabled={!slot.free}
                                 className={`p-4 rounded-xl text-center transition-all ${
                                   slot.free
-                                    ? 'bg-green-50 dark:bg-green-900/20 border-2 border-green-200 dark:border-green-800 hover:border-green-500 hover:shadow-lg'
-                                    : 'bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed'
+                                    ? 'bg-primary-500/15 dark:bg-green-900/20 border-2 border-primary-400/30 dark:border-green-800 hover:border-green-500 hover:shadow-lg'
+                                    : 'bg-charcoal-900/60 text-white/50 cursor-not-allowed'
                                 }`}
                               >
                                 <p className="font-semibold">{slot.time}</p>
@@ -3329,12 +3713,12 @@ export default function Hero() {
                             ))}
                           </div>
 
-                          <div className="mt-4 flex items-center justify-between text-sm text-gray-500">
+                          <div className="mt-4 flex items-center justify-between text-sm text-white/60">
                             <span className="flex items-center gap-2">
-                              <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" />
+                              <div className="w-3 h-3 bg-primary-500/40 rounded-full animate-pulse" />
                               Live updates active
                             </span>
-                            <Button variant="ghost" size="sm">
+                            <Button variant="ghost" size="sm" onClick={() => navigate('/book-appointment')}>
                               View more dates
                             </Button>
                           </div>
@@ -3344,64 +3728,69 @@ export default function Hero() {
                   </section>
 
                   {/* Predictive Insights Section */}
-                  <section className="py-12 bg-gradient-to-br from-gray-900 to-gray-800 text-white">
+                  <section className="py-12 bg-gradient-to-br from-charcoal-950 via-charcoal-900 to-primary-900 text-white">
                     <div className="max-w-7xl mx-auto px-4">
                       <div className="flex items-center justify-between mb-8">
                         <div>
                           <h2 className="text-2xl font-bold flex items-center gap-2">
-                            <Brain className="w-6 h-6 text-purple-400" />
+                            <Brain className="w-6 h-6 text-accent-300" />
                             {t('predictiveInsights')}
                           </h2>
-                          <p className="text-gray-400 mt-1">AI-powered analytics and forecasting</p>
+                          <p className="text-white/60 mt-1">AI-powered analytics and forecasting</p>
                         </div>
-                        <Button variant="outline" className="border-white/30 text-white hover:bg-white/10">
+                        <Button onClick={() => navigate('/viewdashboard')} variant="outline" className="border-accent-300/40 text-accent-100 hover:bg-charcoal-900/70">
                           View Dashboard
                         </Button>
                       </div>
 
                       <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        <Card className="bg-white/10 backdrop-blur border-white/10 p-6">
-                          <h4 className="text-sm text-gray-400 mb-2">ER Wait Forecast</h4>
+                        <Card className="bg-charcoal-900/60 backdrop-blur border-white/10 p-6">
+                          <h4 className="text-sm text-white/60 mb-2">ER Wait Forecast</h4>
                           <p className="text-3xl font-bold mb-4">{liveStats.erWait} min</p>
-                          <MiniSpark data={insights.erWaitForecast} color="#10B981" height={60} />
-                          <p className="text-xs text-gray-400 mt-2">Next 12 hours prediction</p>
+                          <MiniSpark data={erWaitForecast} color="#D4AF37" height={60} />
+                          <p className="text-xs text-white/50 mt-2">Next 12 hours prediction</p>
                         </Card>
 
-                        <Card className="bg-white/10 backdrop-blur border-white/10 p-6">
-                          <h4 className="text-sm text-gray-400 mb-2">Bed Occupancy Trend</h4>
-                          <p className="text-3xl font-bold mb-4">{insights.bedOccupancyTrend[insights.bedOccupancyTrend.length - 1]}%</p>
-                          <MiniSpark data={insights.bedOccupancyTrend} color="#3B82F6" height={60} />
-                          <p className="text-xs text-gray-400 mt-2">7-day trend</p>
+                        <Card className="bg-charcoal-900/60 backdrop-blur border-white/10 p-6">
+                          <h4 className="text-sm text-white/60 mb-2">Bed Occupancy Trend</h4>
+                          <p className="text-3xl font-bold mb-4">{bedOccupancyTrend[bedOccupancyTrend.length - 1]}%</p>
+                          <MiniSpark data={bedOccupancyTrend} color="#22c55e" height={60} />
+                          <p className="text-xs text-white/50 mt-2">7-day trend</p>
                         </Card>
 
-                        <Card className="bg-white/10 backdrop-blur border-white/10 p-6">
-                          <h4 className="text-sm text-gray-400 mb-2">Readmission Risk</h4>
+                        <Card className="bg-charcoal-900/60 backdrop-blur border-white/10 p-6">
+                          <h4 className="text-sm text-white/60 mb-2">Readmission Risk</h4>
                           <div className="flex items-center gap-4">
                             <DonutChart value={insights.readmissionRisk} max={100} size={80} color="#EF4444" />
                             <div>
                               <p className="text-2xl font-bold">{insights.readmissionRisk}%</p>
-                              <p className="text-xs text-green-400">Low risk</p>
+                              <p className="text-xs text-primary-200">Low risk</p>
                             </div>
                           </div>
                         </Card>
 
-                        <Card className="bg-white/10 backdrop-blur border-white/10 p-6">
-                          <h4 className="text-sm text-gray-400 mb-2">Surgery Volume</h4>
+                        <Card className="bg-charcoal-900/60 backdrop-blur border-white/10 p-6">
+                          <h4 className="text-sm text-white/60 mb-2">Surgery Volume</h4>
                           <p className="text-3xl font-bold mb-4">{liveStats.surgeries} active</p>
-                          <MiniSpark data={insights.surgeryVolume} color="#8B5CF6" height={60} />
-                          <p className="text-xs text-gray-400 mt-2">Daily surgeries</p>
+                          <MiniSpark data={surgeryVolume} color="#D4AF37" height={60} />
+                          <p className="text-xs text-white/50 mt-2">Daily surgeries</p>
                         </Card>
                       </div>
 
                       {/* Disease Outbreak Alert */}
-                      <div className="mt-8 p-4 bg-yellow-500/20 border border-yellow-500/30 rounded-xl">
+                      <div className="mt-8 p-4 bg-accent-500/15 border border-accent-400/30 rounded-xl">
                         <div className="flex items-center gap-4">
-                          <AlertTriangle className="w-8 h-8 text-yellow-400" />
+                          <AlertTriangle className="w-8 h-8 text-accent-300" />
                           <div>
-                            <h4 className="font-semibold text-yellow-400">Flu Season Alert</h4>
-                            <p className="text-sm text-gray-300">
+                            <h4 className="font-semibold text-accent-200">Flu Season Alert</h4>
+                            <p className="text-sm text-white/70">
                               Increased flu cases detected in your area. Vaccination recommended. 
-                              <Button variant="ghost" size="sm" className="text-yellow-400 ml-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-accent-200 ml-2"
+                                onClick={() => openInfoModal('Flu Vaccination', 'Book your flu vaccination at the nearest clinic or schedule a home visit with our nursing team.')}
+                              >
                                 Get Vaccinated
                               </Button>
                             </p>
@@ -3417,13 +3806,17 @@ export default function Hero() {
                       <div className="flex items-center justify-between mb-8">
                         <div>
                           <h2 className="text-2xl font-bold">{t('findDoctor')}</h2>
-                          <p className="text-gray-500 mt-1">Expert specialists across all departments</p>
+                          <p className="text-white/60 mt-1">Expert specialists across all departments</p>
                         </div>
                         <div className="flex gap-2">
-                          <Button variant="outline" size="sm">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openInfoModal('Doctor Filters', 'Filter by specialty, availability, insurance, and ratings to find your ideal clinician.')}
+                          >
                             <Filter className="w-4 h-4" /> Filter
                           </Button>
-                          <Button variant="outline" size="sm">
+                          <Button variant="outline" size="sm" onClick={() => navigate('/doctors')}>
                             View All
                           </Button>
                         </div>
@@ -3434,7 +3827,7 @@ export default function Hero() {
                         {['All', 'Cardiology', 'Neurology', 'Orthopedics', 'Pediatrics', 'Dermatology', 'Psychiatry'].map((specialty) => (
                           <button
                             key={specialty}
-                            className="px-4 py-2 rounded-full text-sm whitespace-nowrap bg-gray-100 dark:bg-gray-800 hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors"
+                            className="px-4 py-2 rounded-full text-sm whitespace-nowrap bg-charcoal-900/60 hover:bg-charcoal-900/70 dark:hover:bg-green-900/30 transition-colors"
                           >
                             {specialty}
                           </button>
@@ -3442,12 +3835,13 @@ export default function Hero() {
                       </div>
 
                       <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                        {doctors.slice(0, 8).map((doctor) => (
+                        {doctors.slice(0, 12).map((doctor) => (
                           <DoctorCard
                             key={doctor.id}
                             doctor={doctor}
                             onBook={handleBookDoctor}
                             onViewProfile={handleViewDoctorProfile}
+                            onFavorite={handleFavoriteDoctor}
                           />
                         ))}
                       </div>
@@ -3461,18 +3855,44 @@ export default function Hero() {
                   </section>
 
                   {/* Health Tools Section */}
-                  <section className="py-12 bg-gray-100 dark:bg-gray-800/50">
+                  <section className="py-12 bg-charcoal-900/60">
                     <div className="max-w-7xl mx-auto px-4">
-                      <h2 className="text-2xl font-bold mb-8">Health Tools & Trackers</h2>
+                      <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 mb-8">
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.3em] text-accent-300/80">Precision Wellness</p>
+                          <h2 className="text-3xl font-bold mt-2">Health Tools & Trackers</h2>
+                          <p className="text-white/60 mt-2 max-w-2xl">
+                            Clinical-grade tools for daily wellbeing — log moods, analyze symptoms, and track vitals in real time.
+                          </p>
+                        </div>
+                        <div className="flex gap-3">
+                          <Button variant="outline" onClick={() => navigate('/dashboard')}>
+                            View Dashboard
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            onClick={() => openInfoModal('Premium Health Tools', 'Your personalized trackers update in real time. Insights, alerts, and trends are recorded securely.')}
+                          >
+                            How It Works
+                          </Button>
+                        </div>
+                      </div>
 
                       <div className="grid lg:grid-cols-3 gap-6">
-                        <SymptomChecker />
-                        <MoodTracker />
+                        <SymptomChecker
+                          onAnalyze={handleSymptomAnalyze}
+                          onEmergency={() => navigate('/emergency')}
+                        />
+                        <MoodTracker onLogMood={handleMoodLog} />
                         <VitalSignsWidget vitals={vitals} />
                       </div>
 
                       <div className="grid lg:grid-cols-2 gap-6 mt-6">
-                        <MedicationReminder medications={medications} />
+                        <MedicationReminder
+                          medications={medications}
+                          onAdd={handleAddMedication}
+                          onToggle={handleReminderToggle}
+                        />
                         <WearableDataWidget />
                       </div>
                     </div>
@@ -3487,13 +3907,13 @@ export default function Hero() {
                             <Heart className="w-6 h-6 text-red-500" />
                             Wellness Programs & Challenges
                           </h2>
-                          <p className="text-gray-500 mt-1">Earn points, unlock rewards, stay healthy</p>
+                          <p className="text-white/60 mt-1">Earn points, unlock rewards, stay healthy</p>
                         </div>
                         {user && (
-                          <div className="flex items-center gap-3 bg-gradient-to-r from-yellow-100 to-orange-100 dark:from-yellow-900/30 dark:to-orange-900/30 px-4 py-2 rounded-xl">
+                          <div className="flex items-center gap-3 bg-gradient-to-r from-accent-500/15 to-primary-500/15 dark:from-yellow-900/30 dark:to-orange-900/30 px-4 py-2 rounded-xl">
                             <Award className="w-6 h-6 text-yellow-600" />
                             <div>
-                              <p className="text-sm text-gray-600 dark:text-gray-400">Your Points</p>
+                              <p className="text-sm text-white/70 dark:text-white/50">Your Points</p>
                               <p className="text-xl font-bold text-yellow-600">{points.toLocaleString()}</p>
                             </div>
                           </div>
@@ -3505,7 +3925,7 @@ export default function Hero() {
                         <div className="lg:col-span-2">
                           <h3 className="font-semibold mb-4">Active Programs</h3>
                           <div className="grid sm:grid-cols-2 gap-4">
-                            {wellnessPrograms.slice(0, 4).map((program) => (
+                            {wellnessPrograms.slice(0, 6).map((program) => (
                               <WellnessProgramCard
                                 key={program.id}
                                 program={program}
@@ -3535,7 +3955,7 @@ export default function Hero() {
                   </section>
 
                   {/* Testimonials & Articles Section */}
-                  <section className="py-12 bg-gray-100 dark:bg-gray-800/50">
+                  <section className="py-12 bg-charcoal-900/60">
                     <div className="max-w-7xl mx-auto px-4">
                       <div className="grid lg:grid-cols-2 gap-8">
                         {/* Testimonials */}
@@ -3545,7 +3965,7 @@ export default function Hero() {
                             {t('patientStories')}
                           </h2>
                           <div className="space-y-4">
-                            {testimonials.slice(0, 3).map((testimonial) => (
+                            {testimonials.slice(0, 5).map((testimonial) => (
                               <TestimonialCard key={testimonial.id} testimonial={testimonial} />
                             ))}
                           </div>
@@ -3558,7 +3978,7 @@ export default function Hero() {
                             {t('healthArticles')}
                           </h2>
                           <div className="space-y-4">
-                            {articles.slice(0, 3).map((article) => (
+                            {articles.slice(0, 6).map((article) => (
                               <ArticleCard key={article.id} article={article} onRead={handleReadArticle} />
                             ))}
                           </div>
@@ -3578,32 +3998,107 @@ export default function Hero() {
                             Accepted Insurance
                           </h2>
                           <div className="grid sm:grid-cols-2 gap-4">
-                            {insuranceProviders.slice(0, 4).map((insurance) => (
-                              <InsuranceCard key={insurance.id} insurance={insurance} />
+                            {insuranceProviders.slice(0, 8).map((insurance) => (
+                              <InsuranceCard key={insurance.id} insurance={insurance} onView={handleInsuranceView} />
                             ))}
                           </div>
                         </div>
 
                         {/* Emergency Services */}
-                        <EmergencyServicesWidget />
+                        <EmergencyServicesWidget services={emergencyServices} />
                       </div>
                     </div>
                   </section>
 
+                  {/* Insurance Details Modal */}
+                  <Modal
+                    isOpen={insuranceOpen}
+                    onClose={() => setInsuranceOpen(false)}
+                    title={selectedInsurance?.name || 'Insurance Details'}
+                    size="md"
+                  >
+                    {selectedInsurance ? (
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-3">
+                          <div className="text-3xl">{selectedInsurance.logo}</div>
+                          <div>
+                            <p className="text-sm text-white/60">Network</p>
+                            <p className="font-medium">{selectedInsurance.network}</p>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="p-3 rounded-lg bg-charcoal-900/70 border border-white/10">
+                            <p className="text-xs text-white/60">Coverage</p>
+                            <p className="font-semibold">{selectedInsurance.coverage}</p>
+                          </div>
+                          <div className="p-3 rounded-lg bg-charcoal-900/70 border border-white/10">
+                            <p className="text-xs text-white/60">Claims</p>
+                            <p className="font-semibold">{selectedInsurance.claims || '24/7 Support'}</p>
+                          </div>
+                        </div>
+                        <div className="p-3 rounded-lg bg-charcoal-900/70 border border-white/10">
+                          <p className="text-xs text-white/60">Accepted Services</p>
+                          <p className="text-sm text-white/80">
+                            {selectedInsurance.services?.join(', ') || 'Primary care, specialty visits, diagnostics'}
+                          </p>
+                        </div>
+                        <Button variant="primary" className="w-full" onClick={() => navigate('/contact')}>
+                          Contact Insurance Desk
+                        </Button>
+                      </div>
+                    ) : null}
+                  </Modal>
+
+                  {/* Info Modal */}
+                  <Modal
+                    isOpen={infoModal.open}
+                    onClose={() => setInfoModal({ open: false, title: '', body: '' })}
+                    title={infoModal.title || 'Details'}
+                    size="md"
+                  >
+                    <p className="text-sm text-white/80 leading-relaxed">{infoModal.body}</p>
+                  </Modal>
+
+                  {/* Debug Panel */}
+                  {debugLog.length > 0 && (
+                    <div className="max-w-7xl mx-auto px-4 pb-6">
+                      <div className="rounded-xl bg-red-500/10 border border-red-500/30 p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-sm font-semibold text-red-200">Debug: Engagement Save Errors</p>
+                          <button
+                            className="text-xs text-red-200 underline"
+                            onClick={() => setDebugLog([])}
+                          >
+                            Clear
+                          </button>
+                        </div>
+                        <div className="space-y-2 text-xs text-red-100">
+                          {debugLog.map((entry, idx) => (
+                            <div key={`${entry.ts}-${idx}`} className="flex items-start justify-between gap-3">
+                              <span className="opacity-70">{entry.ts}</span>
+                              <span className="font-medium">{entry.action}</span>
+                              <span className="flex-1 text-right">{entry.error}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Research Studies Section */}
-                  <section className="py-12 bg-purple-50 dark:bg-purple-900/20">
+                  <section className="py-12 bg-accent-400/12 dark:bg-purple-900/20">
                     <div className="max-w-7xl mx-auto px-4">
                       <div className="grid lg:grid-cols-2 gap-8">
-                        <ResearchStudiesWidget />
+                        <ResearchStudiesWidget studies={researchStudies} />
                         <HospitalMap />
                       </div>
                     </div>
                   </section>
 
                   {/* Footer Compliance Section */}
-                  <section className="py-8 bg-gray-100 dark:bg-gray-800">
+                  <section className="py-8 bg-charcoal-900/60">
                     <div className="max-w-7xl mx-auto px-4">
-                      <h3 className="text-center text-sm text-gray-500 mb-4">Accreditations & Compliance</h3>
+                      <h3 className="text-center text-sm text-white/60 mb-4">Accreditations & Compliance</h3>
                       <ComplianceBadges />
                     </div>
                   </section>
@@ -3633,7 +4128,7 @@ export default function Hero() {
                   <Tooltip content="Back to top">
                     <button
                       onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-                      className="w-12 h-12 bg-white dark:bg-gray-800 rounded-full shadow-lg flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      className="w-12 h-12 bg-charcoal-950 rounded-full shadow-lg flex items-center justify-center hover:bg-charcoal-900/60 dark:hover:bg-charcoal-900/70 transition-colors"
                     >
                       <ArrowUp className="w-5 h-5" />
                     </button>
@@ -3653,7 +4148,7 @@ export default function Hero() {
                   <Tooltip content="AI Assistant">
                     <button
                       onClick={() => setChatOpen(!chatOpen)}
-                      className="w-14 h-14 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-full shadow-lg flex items-center justify-center hover:from-purple-700 hover:to-blue-700 transition-all transform hover:scale-105"
+                      className="w-14 h-14 bg-gradient-to-r from-purple-600 to-primary-700 text-white rounded-full shadow-lg flex items-center justify-center hover:from-purple-700 hover:to-blue-700 transition-all transform hover:scale-105"
                     >
                       <MessageSquare className="w-6 h-6" />
                     </button>
@@ -3678,11 +4173,11 @@ export default function Hero() {
 
                 {/* Accessibility Quick Panel */}
                 <div className="fixed left-0 top-1/2 -translate-y-1/2 z-40">
-                  <div className="bg-white dark:bg-gray-800 rounded-r-xl shadow-lg p-2 space-y-2">
+                  <div className="bg-charcoal-950 rounded-r-xl shadow-lg p-2 space-y-2">
                     <Tooltip content="Increase font size">
                       <button
                         onClick={() => setFontSize(f => f === 'base' ? 'lg' : f === 'lg' ? 'xl' : 'base')}
-                        className="w-10 h-10 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                        className="w-10 h-10 flex items-center justify-center hover:bg-charcoal-900/60 dark:hover:bg-charcoal-900/70 rounded-lg"
                       >
                         <Type className="w-5 h-5" />
                       </button>
@@ -3690,7 +4185,7 @@ export default function Hero() {
                     <Tooltip content="High contrast">
                       <button
                         onClick={() => setHighContrast(!highContrast)}
-                        className={`w-10 h-10 flex items-center justify-center rounded-lg ${highContrast ? 'bg-yellow-100 text-yellow-700' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                        className={`w-10 h-10 flex items-center justify-center rounded-lg ${highContrast ? 'bg-yellow-100 text-yellow-700' : 'hover:bg-charcoal-900/60 dark:hover:bg-charcoal-900/70'}`}
                       >
                         <Eye className="w-5 h-5" />
                       </button>
@@ -3698,7 +4193,7 @@ export default function Hero() {
                     <Tooltip content="Sign language">
                       <button
                         onClick={() => setShowSignLanguage(!showSignLanguage)}
-                        className={`w-10 h-10 flex items-center justify-center rounded-lg ${showSignLanguage ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                        className={`w-10 h-10 flex items-center justify-center rounded-lg ${showSignLanguage ? 'bg-blue-100 text-blue-700' : 'hover:bg-charcoal-900/60 dark:hover:bg-charcoal-900/70'}`}
                       >
                         <Hand className="w-5 h-5" />
                       </button>
@@ -3706,7 +4201,7 @@ export default function Hero() {
                     <Tooltip content="Read aloud">
                       <button
                         onClick={() => ttsSpeak('Welcome to Medicore Hospital. How can we help you today?')}
-                        className="w-10 h-10 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                        className="w-10 h-10 flex items-center justify-center hover:bg-charcoal-900/60 dark:hover:bg-charcoal-900/70 rounded-lg"
                       >
                         <Volume2 className="w-5 h-5" />
                       </button>
@@ -3716,9 +4211,9 @@ export default function Hero() {
 
                 {/* Cookie Consent Banner */}
                 {!localStorage.getItem('cookieConsent') && (
-                  <div className="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-gray-800 border-t dark:border-gray-700 p-4 shadow-lg">
+                  <div className="fixed bottom-0 left-0 right-0 z-50 bg-charcoal-950 border-t border-white/10 p-4 shadow-lg">
                     <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                      <p className="text-sm text-white/70 dark:text-white/50">
                         We use cookies to enhance your experience. By continuing to visit this site you agree to our use of cookies.
                       </p>
                       <div className="flex gap-2">
@@ -3798,24 +4293,18 @@ export {
   formatCurrency,
   formatDate,
   calculateBMI,
-  // Data generators
-  makeDoctors,
-  makePatients,
-  makeAppointments,
-  makeLabResults,
-  makeMedications,
-  makeEquipment,
-  makeRooms,
-  makeStaff,
-  makeArticles,
-  makeTestimonials,
-  makeInsuranceProviders,
-  makeEmergencyServices,
-  makeWellnessPrograms,
-  makeChallenges,
-  makeLeaderboard,
-  makeResearchStudies,
   // Constants
   defaultServices,
   translations,
 };
+
+
+
+
+
+
+
+
+
+
+

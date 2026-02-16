@@ -4,6 +4,26 @@ import axios from 'axios';
 import { FileText, Calendar, User, Download, AlertCircle, CheckCircle, Clock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
+const downloadPrescription = (prescription) => {
+  const content = [
+    `Prescription: ${prescription.medicine || 'N/A'}`,
+    `Dosage: ${prescription.dosage || 'N/A'}`,
+    `Frequency: ${prescription.frequency || 'N/A'}`,
+    `Duration: ${prescription.duration || 'N/A'}`,
+    prescription.instructions ? `Instructions: ${prescription.instructions}` : ''
+  ].filter(Boolean).join('\n');
+
+  const blob = new Blob([content], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `prescription-${prescription._id || prescription.id || 'item'}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+
 const PatientPrescriptions = () => {
   const { user, token } = useAuth(); // get token from context
   const [prescriptions, setPrescriptions] = useState([]);
@@ -87,46 +107,46 @@ const PatientPrescriptions = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-charcoal-950 via-primary-900/20 to-charcoal-950">
       <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-            <FileText className="w-8 h-8 text-green-600" />
-            Prescriptions
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-luxury-gold via-primary-300 to-luxury-silver bg-clip-text text-transparent flex items-center gap-3 tracking-wider">
+            <FileText className="w-8 h-8 text-luxury-gold" />
+            PRESCRIPTIONS
           </h1>
-          <p className="mt-2 text-gray-600">View and manage your medication prescriptions</p>
+          <p className="mt-2 text-muted-400 font-medium tracking-wide">View and manage your medication prescriptions</p>
         </div>
 
         {/* Prescriptions List */}
         {prescriptions.length === 0 ? (
-          <div className="bg-white rounded-lg shadow p-8 text-center">
-            <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No Prescriptions Found</h3>
-            <p className="text-gray-600">You don't have any prescriptions available yet.</p>
+          <div className="bg-charcoal-800/50 backdrop-blur-sm rounded-xl shadow-2xl shadow-charcoal-950/20 p-8 text-center border border-primary-900/30">
+            <FileText className="w-16 h-16 text-muted-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-white mb-2">No Prescriptions Found</h3>
+            <p className="text-muted-400">You don't have any prescriptions available yet.</p>
           </div>
         ) : (
           <div className="grid gap-6">
             {prescriptions.map((prescription) => (
-              <div key={prescription._id} className="bg-white rounded-lg shadow p-6">
+              <div key={prescription._id} className="bg-charcoal-800/50 backdrop-blur-sm rounded-xl shadow-2xl shadow-charcoal-950/20 p-6 border border-primary-900/30">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
                       {getStatusIcon(prescription.status)}
-                      <h3 className="text-xl font-semibold text-gray-900">{prescription.medicationName}</h3>
+                      <h3 className="text-xl font-semibold text-white">{prescription.medicationName}</h3>
                       <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(prescription.status)}`}>
                         {prescription.status}
                       </span>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                      <div className="flex items-center gap-2 text-gray-600">
+                      <div className="flex items-center gap-2 text-muted-400">
                         <User className="w-4 h-4" />
                         <span className="text-sm">
                           Dr. {prescription.prescribedBy?.name || 'Unknown'}
                         </span>
                       </div>
-                      <div className="flex items-center gap-2 text-gray-600">
+                      <div className="flex items-center gap-2 text-muted-400">
                         <Calendar className="w-4 h-4" />
                         <span className="text-sm">
                           {new Date(prescription.date).toLocaleDateString('en-US', {
@@ -138,25 +158,25 @@ const PatientPrescriptions = () => {
                       </div>
                     </div>
 
-                    <div className="bg-gray-50 rounded-lg p-4">
+                    <div className="bg-charcoal-900/50 rounded-lg p-4 border border-primary-800/30">
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
-                          <h4 className="font-medium text-gray-900 mb-1">Dosage</h4>
-                          <p className="text-gray-700">{prescription.dosage}</p>
+                          <h4 className="font-medium text-luxury-gold mb-1">Dosage</h4>
+                          <p className="text-white">{prescription.dosage}</p>
                         </div>
                         <div>
-                          <h4 className="font-medium text-gray-900 mb-1">Frequency</h4>
-                          <p className="text-gray-700">{prescription.frequency}</p>
+                          <h4 className="font-medium text-luxury-gold mb-1">Frequency</h4>
+                          <p className="text-white">{prescription.frequency}</p>
                         </div>
                         <div>
-                          <h4 className="font-medium text-gray-900 mb-1">Duration</h4>
-                          <p className="text-gray-700">{prescription.duration}</p>
+                          <h4 className="font-medium text-luxury-gold mb-1">Duration</h4>
+                          <p className="text-white">{prescription.duration}</p>
                         </div>
                       </div>
                       {prescription.instructions && (
                         <div className="mt-4">
-                          <h4 className="font-medium text-gray-900 mb-1">Instructions</h4>
-                          <p className="text-gray-700">{prescription.instructions}</p>
+                          <h4 className="font-medium text-luxury-gold mb-1">Instructions</h4>
+                          <p className="text-white">{prescription.instructions}</p>
                         </div>
                       )}
                     </div>
@@ -164,8 +184,8 @@ const PatientPrescriptions = () => {
 
                   <div className="ml-6">
                     <button
-                      className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                      onClick={() => alert('Download functionality would be implemented here')}
+                      className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-primary-900 to-primary-800 text-luxury-gold rounded-lg hover:from-primary-800 hover:to-primary-700 transition-all duration-300 shadow-lg shadow-primary-900/25 border border-primary-700/50"
+                      onClick={() => downloadPrescription(prescription)}
                     >
                       <Download className="w-4 h-4" />
                       Download

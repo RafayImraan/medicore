@@ -28,6 +28,7 @@ import Billing from "./pages/Dashboard/Billing";
 import Pharmacy from "./pages/Pharmacy";
 import Diagnostic from "./pages/Diagnostic";
 import HomeHealthcare from "./pages/HomeHealthcare";
+import Viewdashboard from "./pages/viewdashboard";
 
 import ProtectedRoute from "./components/ProtectedRoute";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -35,8 +36,9 @@ import ErrorBoundary from "./components/ErrorBoundary";
 const App = () => {
   return (
     <Router>
-      <div className="min-h-screen bg-gradient-animated bg-[length:400%_400%] animate-gradient">
+      <div className="min-h-screen bg-gradient-to-br from-charcoal-950 via-primary-900/20 to-charcoal-950">
         <Navbar />
+        <div className="pt-20"> {/* Add padding for fixed navbar */}
         <ErrorBoundary>
           <Routes>
           {/* Public */}
@@ -52,6 +54,7 @@ const App = () => {
           <Route path="/pharmacy" element={<Pharmacy />} />
           <Route path="/diagnostic" element={<Diagnostic />} />
           <Route path="/home-healthcare" element={<HomeHealthcare />} />
+          <Route path="/viewdashboard" element={<Viewdashboard />} />
 
           {/* Protected */}
           <Route path="/dashboard/admin" element={
@@ -110,6 +113,7 @@ const App = () => {
               <Billing />
             </ProtectedRoute>
           } />
+          
           <Route
             path="/appointment-history"
             element={
@@ -121,6 +125,7 @@ const App = () => {
           </Routes>
         </ErrorBoundary>
         <Footer />
+        </div> {/* Close the pt-20 div */}
       </div>
     </Router>
   );

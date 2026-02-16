@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   FaSync, FaExclamationTriangle, FaStethoscope, FaHeartbeat, FaThermometerHalf,
@@ -11,7 +12,6 @@ import {
   FaExclamationCircle, FaCheckCircle, FaInfoCircle,
   FaSave, FaCog
 } from 'react-icons/fa';
-import { faker } from '@faker-js/faker';
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar,
   PieChart, Pie, Cell, Legend, AreaChart, Area, RadarChart, Radar, PolarGrid,
@@ -25,65 +25,18 @@ import {
   rectSortingStrategy
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { apiRequest } from '../../services/api';
 
 // Helpers
-const rand = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
-const patientName = () => `${faker.person.firstName()} ${faker.person.lastName()}`;
-
-// Generate mock data
-const generatePatients = (n = 20) => Array.from({ length: n }).map((_, i) => {
-  const riskScore = rand(0, 100);
-  return {
-    id: `p-${i + 1}`,
-    name: patientName(),
-    age: rand(18, 85),
-    gender: faker.helpers.arrayElement(['Male', 'Female', 'Other']),
-    nextAppointment: new Date(Date.now() + rand(1, 20) * 86400000).toLocaleDateString(),
-    priority: riskScore > 80 ? 'Critical' : riskScore > 60 ? 'High' : riskScore > 30 ? 'Medium' : 'Low',
-    tags: faker.helpers.arrayElements(['Follow-up', 'New', 'Chronic', 'Post-op', 'Emergency', 'ICU', 'Outpatient'], rand(1, 3)),
-    condition: faker.helpers.arrayElement(['Hypertension', 'Diabetes', 'Asthma', 'COPD', 'Heart Failure', 'Stroke', 'Cancer', 'COVID-19']),
-    vitalsHistory: Array.from({ length: 14 }).map((__, j) => ({
-      date: new Date(Date.now() - j * 86400000).toLocaleDateString(),
-      bp: `${rand(100, 180)}/${rand(60, 110)}`,
-      hr: rand(50, 130),
-      sugar: rand(70, 250),
-      temp: +(35 + Math.random() * 4).toFixed(1),
-      o2: rand(88, 100),
-      timestamp: Date.now() - j * 86400000
-    })),
-    photo: `https://i.pravatar.cc/150?img=${rand(1, 70)}`,
-    riskScore,
-    adherenceScore: rand(40, 100),
-    lastVisit: new Date(Date.now() - rand(1, 30) * 86400000).toLocaleDateString(),
-    onlineStatus: faker.helpers.arrayElement(['online', 'offline', 'busy']),
-    missingData: faker.helpers.arrayElements(['Labs', 'ECG', 'X-Ray', 'MRI', 'Blood Work'], rand(0, 2)),
-    predictedDeterioration: rand(0, 100),
-    assignedTeam: faker.helpers.arrayElements(['Dr. Smith', 'Nurse Johnson', 'Dr. Lee', 'Tech Williams'], rand(1, 2))
-  };
-});
-
-const generateAppointments = (count = 12, patients) =>
-  Array.from({ length: count }).map((_, i) => {
-    const patient = patients[i % patients.length];
-    return {
-      id: `apt-${i + 1}`,
-      date: new Date(Date.now() + (i < 4 ? 0 : i) * 3600 * 1000).toLocaleDateString(),
-      time: `${rand(8, 17)}:${["00", "15", "30", "45"][rand(0, 3)]}`,
-      patient: patient.name,
-      patientId: patient.id,
-      reason: faker.helpers.arrayElement(['Routine Checkup', 'Follow-up', 'Lab Results', 'Consultation', 'Emergency', 'Vaccination']),
-      status: faker.helpers.arrayElement(['Confirmed', 'Pending', 'Completed', 'Cancelled', 'In Progress']),
-      waitTime: rand(0, 45),
-      type: faker.helpers.arrayElement(['In-person', 'Telemedicine'])
-    };
-  });
-
-const generateTeamMembers = () => [
-  { id: 't1', name: 'Dr. Sarah Chen', role: 'Cardiologist', status: 'available', avatar: 'https://i.pravatar.cc/150?img=1' },
-  { id: 't2', name: 'Nurse James Wilson', role: 'RN', status: 'busy', currentPatient: 'Room 302', avatar: 'https://i.pravatar.cc/150?img=2' },
-  { id: 't3', name: 'Dr. Michael Brown', role: 'Internist', status: 'available', avatar: 'https://i.pravatar.cc/150?img=3' },
-  { id: 't4', name: 'Tech Lisa Park', role: 'Lab Tech', status: 'offline', avatar: 'https://i.pravatar.cc/150?img=4' },
-];
+const toTitle = (value = '') => value ? value.charAt(0).toUpperCase() + value.slice(1) : '';
+const getAge = (dateOfBirth) => {
+  if (!dateOfBirth) return 'N/A';
+  const dob = new Date(dateOfBirth);
+  if (Number.isNaN(dob.getTime())) return 'N/A';
+  const diff = Date.now() - dob.getTime();
+  return Math.max(0, Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25)));
+};
+const deriveRisk = (age, historyCount) => Math.min(100, Math.max(0, (age || 0) + (historyCount || 0) * 8));
 
 // Colors
 const PRIORITY_COLORS = { Critical: '#dc2626', High: '#f59e0b', Medium: '#3b82f6', Low: '#22c55e' };
@@ -108,17 +61,17 @@ function SortableWidget({ widget, children, onToggleCollapse, onResize }) {
     <motion.div
       ref={setNodeRef}
       style={style}
-      className={`${sizeClasses[widget.size]} bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden border border-gray-100 dark:border-gray-700`}
+      className={`${sizeClasses[widget.size]} bg-charcoal-800/50 backdrop-blur-sm rounded-xl shadow-2xl shadow-charcoal-950/20 overflow-hidden border border-primary-900/30`}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
     >
-      <div className="flex items-center justify-between p-3 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 border-b border-gray-200 dark:border-gray-600">
+      <div className="flex items-center justify-between p-3 bg-gradient-to-r from-charcoal-800/80 to-primary-900/20 border-b border-primary-800/30">
         <div className="flex items-center gap-2">
-          <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded">
-            <FaGripVertical className="text-gray-400" />
+          <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing p-1 hover:bg-primary-900/30 rounded">
+            <FaGripVertical className="text-muted-400" />
           </div>
-          <h3 className="font-semibold text-gray-800 dark:text-gray-200">{widget.title}</h3>
+          <h3 className="font-semibold text-white">{widget.title}</h3>
         </div>
         <div className="flex items-center gap-1">
           <button onClick={() => onResize(widget.id, 'small')} className={`p-1 rounded ${widget.size === 'small' ? 'bg-blue-100 text-blue-600' : 'hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
@@ -161,10 +114,11 @@ function Sparkline({ data, dataKey, color = '#3b82f6', height = 30 }) {
 
 // Main Dashboard Component
 export function App() {
+  const navigate = useNavigate();
   // State
   const [dark, setDark] = useState(false);
   const [highContrast, setHighContrast] = useState(false);
-  const [patients, setPatients] = useState(() => generatePatients(25));
+  const [patients, setPatients] = useState([]);
   const [appointments, setAppointments] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [selectedPatient, setSelectedPatient] = useState(null);
@@ -174,7 +128,7 @@ export function App() {
   const [sortBy, setSortBy] = useState('risk');
   const [page, setPage] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [teamMembers] = useState(generateTeamMembers);
+  const [teamMembers] = useState([]);
   const [activityLogs, setActivityLogs] = useState([]);
   const [bulkSelection, setBulkSelection] = useState([]);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
@@ -183,11 +137,7 @@ export function App() {
   const [forecastMode, setForecastMode] = useState(false);
   const [scenarioSliders, setScenarioSliders] = useState({ patientLoad: 50, riskThreshold: 70 });
   const [customAlerts, setCustomAlerts] = useState({});
-  const [leaderboard] = useState([
-    { name: 'Dr. Chen', score: 156, consultations: 42, followUps: 28 },
-    { name: 'Dr. Brown', score: 142, consultations: 38, followUps: 24 },
-    { name: 'Dr. Smith', score: 128, consultations: 35, followUps: 22 },
-  ]);
+  const [leaderboard] = useState([]);
   const [widgets, setWidgets] = useState([
     { id: 'vitals', title: 'Live Vitals Monitor', type: 'vitals', collapsed: false, size: 'large' },
     { id: 'queue', title: 'Patient Queue', type: 'queue', collapsed: false, size: 'medium' },
@@ -196,15 +146,115 @@ export function App() {
     { id: 'ai', title: 'AI Insights & Predictions', type: 'ai', collapsed: false, size: 'medium' },
     { id: 'team', title: 'Team Collaboration', type: 'team', collapsed: false, size: 'small' },
   ]);
+  const [doctorProfile, setDoctorProfile] = useState(null);
+  const [vitalsLive, setVitalsLive] = useState([]);
 
   const perPage = 6;
   const commandInputRef = useRef(null);
   const searchInputRef = useRef(null);
 
-  // Initialize appointments
+  // Load doctor profile + dashboard data
   useEffect(() => {
-    setAppointments(generateAppointments(12, patients));
+    const storedUser = localStorage.getItem('user');
+    const parsedUser = storedUser ? JSON.parse(storedUser) : null;
+    const userId = parsedUser?._id || parsedUser?.id;
+    if (!userId) return;
+
+    const loadDoctor = async () => {
+      try {
+        const doc = await apiRequest(`/api/doctors/${userId}`);
+        setDoctorProfile(doc);
+      } catch (err) {
+        console.error('Failed to load doctor profile:', err);
+      }
+    };
+
+    loadDoctor();
   }, []);
+
+  useEffect(() => {
+    const loadDashboard = async () => {
+      try {
+        const [patientsData, notificationsData, vitalsData] = await Promise.all([
+          apiRequest('/api/patients'),
+          apiRequest('/api/notifications'),
+          apiRequest('/api/vitals/live')
+        ]);
+
+        const appointmentsData = doctorProfile?._id
+          ? await apiRequest(`/api/appointments/doctor/${doctorProfile._id}`)
+          : [];
+
+        const appointmentItems = Array.isArray(appointmentsData) ? appointmentsData.map((appt) => ({
+          id: appt._id,
+          date: appt.appointmentDate ? new Date(appt.appointmentDate).toLocaleDateString() : '',
+          time: appt.appointmentTime || '',
+          patient: appt.patient?.name || 'Unknown Patient',
+          patientId: appt.patient?.email || appt.patient?.name || '',
+          reason: appt.reason || 'Consultation',
+          status: toTitle(appt.status || 'pending'),
+          waitTime: 0,
+          type: appt.type === 'video' ? 'Telemedicine' : appt.type === 'phone' ? 'Telemedicine' : 'In-person'
+        })) : [];
+
+        const patientCards = Array.isArray(patientsData) ? patientsData.map((p) => {
+          const age = getAge(p.dateOfBirth);
+          const history = p.medicalHistory || [];
+          const riskScore = deriveRisk(age, history.length);
+          const priority = riskScore > 80 ? 'Critical' : riskScore > 60 ? 'High' : riskScore > 30 ? 'Medium' : 'Low';
+
+          const userName = p.userId?.name || 'Unknown Patient';
+          const userEmail = p.userId?.email || '';
+          const nextAppt = appointmentItems.find(a => a.patientId === userEmail);
+
+          return {
+            id: p._id,
+            name: userName,
+            age,
+            gender: toTitle(p.gender || 'Other'),
+            nextAppointment: nextAppt?.date || '—',
+            priority,
+            tags: history.map(h => h.status).filter(Boolean),
+            condition: history[0]?.condition || 'General',
+            vitalsHistory: [],
+            photo: `https://i.pravatar.cc/150?u=${encodeURIComponent(userEmail || p._id)}`,
+            riskScore,
+            adherenceScore: Math.max(0, 100 - history.length * 5),
+            lastVisit: p.updatedAt ? new Date(p.updatedAt).toLocaleDateString() : '—',
+            onlineStatus: 'offline',
+            missingData: [],
+            predictedDeterioration: 0,
+            assignedTeam: []
+          };
+        }) : [];
+
+        const normalizedNotifications = Array.isArray(notificationsData)
+          ? notificationsData.map(n => ({
+              id: n._id,
+              type: n.severity || n.type || 'info',
+              title: n.title || n.message || 'Notification',
+              message: n.description || n.message || '',
+              timestamp: new Date(n.timestamp || n.createdAt || Date.now()),
+              patientId: n.patientId,
+              actions: [],
+              read: n.read || false,
+              snoozed: false
+            }))
+          : [];
+
+        setPatients(patientCards);
+        setAppointments(appointmentItems);
+        setNotifications(normalizedNotifications);
+        setVitalsLive(Array.isArray(vitalsData) ? vitalsData : []);
+      } catch (err) {
+        console.error('Failed to load doctor dashboard data:', err);
+      }
+    };
+
+    loadDashboard();
+    const interval = setInterval(loadDashboard, 15000);
+    return () => clearInterval(interval);
+  }, [doctorProfile?._id]);
 
   // Apply theme
   useEffect(() => {
@@ -238,7 +288,7 @@ export function App() {
     }
   }, [showCommandPalette]);
 
-  // Real-time vitals streaming simulation
+  /* Real-time vitals streaming simulation (disabled for live data)
   useEffect(() => {
     const interval = setInterval(() => {
       setPatients(prev => prev.map(p => {
@@ -310,6 +360,7 @@ export function App() {
 
     return () => clearInterval(interval);
   }, [customAlerts, patients, teamMembers]);
+  */
 
   // Live search suggestions
   useEffect(() => {
@@ -352,46 +403,77 @@ export function App() {
     patients.filter(p => p.priority === 'Critical' || p.predictedDeterioration > 70).slice(0, 3),
     [patients]);
 
-  const analyticsData = useMemo(() => ({
-    appointmentsByHour: Array.from({ length: 10 }).map((_, i) => ({
+  const analyticsData = useMemo(() => {
+    const appointmentHours = Array.from({ length: 10 }).map((_, i) => ({
       hour: `${8 + i}:00`,
-      appointments: rand(2, 12),
-      completed: rand(1, 8)
-    })),
-    riskDistribution: [
+      appointments: 0,
+      completed: 0
+    }));
+
+    appointments.forEach((appt) => {
+      if (!appt.time) return;
+      const hour = parseInt(appt.time.split(':')[0], 10);
+      if (Number.isNaN(hour)) return;
+      const index = hour - 8;
+      if (index >= 0 && index < appointmentHours.length) {
+        appointmentHours[index].appointments += 1;
+        if (appt.status === 'Completed') appointmentHours[index].completed += 1;
+      }
+    });
+
+    const riskDistribution = [
       { name: 'Critical', value: patients.filter(p => p.priority === 'Critical').length, color: '#dc2626' },
       { name: 'High', value: patients.filter(p => p.priority === 'High').length, color: '#f59e0b' },
       { name: 'Medium', value: patients.filter(p => p.priority === 'Medium').length, color: '#3b82f6' },
       { name: 'Low', value: patients.filter(p => p.priority === 'Low').length, color: '#22c55e' },
-    ],
-    weeklyTrend: Array.from({ length: 7 }).map((_, i) => ({
-      day: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][i],
-      patients: rand(15, 40),
-      consultations: rand(10, 30),
-      emergencies: rand(0, 5)
-    })),
-    conditionBreakdown: [
-      { condition: 'Hypertension', count: rand(20, 40), risk: rand(50, 80) },
-      { condition: 'Diabetes', count: rand(15, 35), risk: rand(40, 70) },
-      { condition: 'Heart Failure', count: rand(10, 25), risk: rand(60, 90) },
-      { condition: 'COPD', count: rand(8, 20), risk: rand(50, 75) },
-      { condition: 'Cancer', count: rand(5, 15), risk: rand(70, 95) },
-    ]
-  }), [patients]);
+    ];
+
+    const weeklyMap = new Map([
+      ['Mon', { day: 'Mon', patients: 0, consultations: 0, emergencies: 0 }],
+      ['Tue', { day: 'Tue', patients: 0, consultations: 0, emergencies: 0 }],
+      ['Wed', { day: 'Wed', patients: 0, consultations: 0, emergencies: 0 }],
+      ['Thu', { day: 'Thu', patients: 0, consultations: 0, emergencies: 0 }],
+      ['Fri', { day: 'Fri', patients: 0, consultations: 0, emergencies: 0 }],
+      ['Sat', { day: 'Sat', patients: 0, consultations: 0, emergencies: 0 }],
+      ['Sun', { day: 'Sun', patients: 0, consultations: 0, emergencies: 0 }]
+    ]);
+
+    appointments.forEach((appt) => {
+      const date = appt.date ? new Date(appt.date) : null;
+      if (!date || Number.isNaN(date.getTime())) return;
+      const day = date.toLocaleDateString('en-US', { weekday: 'short' });
+      const entry = weeklyMap.get(day);
+      if (!entry) return;
+      entry.consultations += 1;
+      if (appt.reason?.toLowerCase().includes('emergency')) entry.emergencies += 1;
+      entry.patients += 1;
+    });
+
+    const conditionCounts = patients.reduce((acc, p) => {
+      const key = p.condition || 'General';
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
+
+    const conditionBreakdown = Object.entries(conditionCounts).map(([condition, count]) => ({
+      condition,
+      count,
+      risk: Math.min(100, count * 10)
+    }));
+
+    return {
+      appointmentsByHour: appointmentHours,
+      riskDistribution,
+      weeklyTrend: Array.from(weeklyMap.values()),
+      conditionBreakdown
+    };
+  }, [patients, appointments]);
 
   // Forecast data (simulated AI prediction)
   const forecastData = useMemo(() => {
     if (!forecastMode) return [];
-    const lastVitals = patients[0]?.vitalsHistory[0];
-    if (!lastVitals) return [];
-
-    return Array.from({ length: 48 }).map((_, i) => ({
-      hour: i,
-      bp: parseInt(lastVitals.bp.split('/')[0]) + rand(-10, 10) + (i * (Math.random() > 0.5 ? 0.5 : -0.3)),
-      hr: lastVitals.hr + rand(-5, 5) + (i * (Math.random() > 0.5 ? 0.2 : -0.1)),
-      predicted: true
-    }));
-  }, [forecastMode, patients]);
+    return [];
+  }, [forecastMode]);
 
   // Sensors for drag and drop
   const sensors = useSensors(
@@ -444,8 +526,16 @@ export function App() {
     }, ...prev.slice(0, 9)]);
   };
 
-  const updateAppointmentStatus = (id, status) => {
-    setAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a));
+  const updateAppointmentStatus = async (id, status) => {
+    try {
+      await apiRequest(`/api/appointments/${id}/status`, {
+        method: 'PUT',
+        body: JSON.stringify({ status: status.toLowerCase() })
+      });
+      setAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a));
+    } catch (err) {
+      console.error('Failed to update appointment status:', err);
+    }
   };
 
   const toggleBulkSelection = (id) => {
@@ -524,10 +614,23 @@ export function App() {
 
             {/* Vitals Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-              {patients.slice(0, 8).map(p => {
-                const latest = p.vitalsHistory[0];
+              {vitalsLive.slice(0, 8).map(v => {
+                const patientMatch = patients.find(p => p.name === v.patient);
+                const p = patientMatch || {
+                  id: v.id,
+                  name: v.patient,
+                  priority: 'Low',
+                  onlineStatus: 'offline',
+                  vitalsHistory: []
+                };
+                const latest = {
+                  bp: v.bp,
+                  hr: v.hr,
+                  o2: v.o2 || v.oxygenSaturation,
+                  temp: v.temp
+                };
                 const systolic = parseInt(latest?.bp?.split('/')[0] || '0');
-                const isAbnormal = systolic > 150 || latest?.hr > 110 || latest?.o2 < 94;
+                const isAbnormal = systolic > 150 || (latest?.hr || 0) > 110 || (latest?.o2 || 100) < 94;
 
                 return (
                   <motion.div
@@ -578,7 +681,7 @@ export function App() {
                           className="mt-2"
                         >
                           <Sparkline
-                            data={p.vitalsHistory.slice(0, 7).reverse()}
+                            data={[{ bp: latest?.bp }]}
                             dataKey={(d) => parseInt(d.bp?.split('/')[0] || '0')}
                             color={isAbnormal ? '#ef4444' : '#3b82f6'}
                           />
@@ -619,7 +722,7 @@ export function App() {
                 </h4>
                 <button
                   onClick={() => setForecastMode(f => !f)}
-                  className={`px-3 py-1 text-sm rounded-full flex items-center gap-1 ${forecastMode ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-600'
+                  className={`text-black px-3 py-1 text-sm rounded-full flex items-center gap-1 ${forecastMode ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-600'
                     }`}
                 >
                   <FaBrain /> AI Forecast
@@ -628,9 +731,10 @@ export function App() {
               <div className="h-48 bg-gray-50 dark:bg-gray-900 rounded-lg p-2">
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={[
-                    ...patients[0]?.vitalsHistory.slice(0, 7).reverse().map(v => ({
-                      ...v,
+                    ...vitalsLive.slice(0, 7).reverse().map(v => ({
+                      date: new Date(v.timestamp || Date.now()).toLocaleTimeString(),
                       systolic: parseInt(v.bp?.split('/')[0] || '0'),
+                      hr: v.hr,
                       predicted: false
                     })),
                     ...(forecastMode ? forecastData.map((f, i) => ({
@@ -685,7 +789,7 @@ export function App() {
               <select
                 value={filterPriority}
                 onChange={(e) => setFilterPriority(e.target.value)}
-                className="px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600"
+                className="text-black px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600"
               >
                 <option value="All">All Priority</option>
                 <option value="Critical">Critical</option>
@@ -696,7 +800,7 @@ export function App() {
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
-                className="px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600"
+                className="text-black px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600"
               >
                 <option value="risk">Sort by Risk</option>
                 <option value="name">Sort by Name</option>
@@ -918,7 +1022,7 @@ export function App() {
               <div className="flex items-center gap-2 text-sm font-medium text-purple-700 dark:text-purple-300 mb-2">
                 <FaRobot /> AI Suggested Optimal Slots
               </div>
-              <div className="flex gap-2 flex-wrap">
+              <div className="text-black flex gap-2 flex-wrap">
                 {['10:30 AM', '2:00 PM', '4:15 PM'].map(slot => (
                   <button
                     key={slot}
@@ -1083,8 +1187,8 @@ export function App() {
               <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
                 <FaRobot /> Smart Suggestions
               </h4>
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded text-sm">
+              <div className="text-black space-y-2">
+                <div className="text-black flex items-center gap-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded text-sm">
                   <FaCheckCircle className="text-blue-500" />
                   <span>Schedule follow-up for 3 post-op patients this week</span>
                 </div>
@@ -1176,19 +1280,21 @@ export function App() {
   };
 
   return (
-    <div className={`min-h-screen bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors`}>
+    <div className={`min-h-screen bg-gradient-to-br from-charcoal-950 via-primary-900/20 to-charcoal-950 text-white transition-colors`}>
       {/* Header */}
-      <header className="bg-white dark:bg-gray-800 shadow-sm border-b dark:border-gray-700 sticky top-0 z-40">
+      <header className="bg-charcoal-950/95 backdrop-blur-xl border-b border-primary-900/30 shadow-2xl shadow-charcoal-950/50 sticky top-0 z-40">
         <div className="max-w-[1920px] mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
-                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
-                  <FaStethoscope className="text-white text-xl" />
+                <div className="w-10 h-10 bg-gradient-to-br from-primary-900 via-luxury-gold to-primary-800 rounded-xl flex items-center justify-center shadow-lg shadow-primary-900/50">
+                  <FaStethoscope className="text-luxury-gold text-xl" />
                 </div>
                 <div>
-                  <h1 className="text-xl font-bold">MediCore Pro</h1>
-                  <p className="text-xs text-gray-500">Doctor Dashboard</p>
+                  <h1 className="text-xl font-bold bg-gradient-to-r from-luxury-gold via-primary-300 to-luxury-silver bg-clip-text text-transparent tracking-wider">
+                    MEDICORE PRO
+                  </h1>
+                  <p className="text-xs text-muted-400 font-medium tracking-widest">Doctor Dashboard</p>
                 </div>
               </div>
 
@@ -1236,7 +1342,7 @@ export function App() {
               </button>
 
               {/* Notifications */}
-              <div className="relative">
+              <div className="text-black relative">
                 <button
                   onClick={() => setShowNotifications(!showNotifications)}
                   className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg relative"
@@ -1334,7 +1440,7 @@ export function App() {
               {/* Export Button */}
               <button
                 onClick={exportData}
-                className="hidden md:flex items-center gap-1 px-3 py-1.5 bg-gray-100 dark:bg-gray-700 rounded-lg text-sm hover:bg-gray-200 dark:hover:bg-gray-600"
+                className="text-black hidden md:flex items-center gap-1 px-3 py-1.5 bg-gray-100 dark:bg-gray-700 rounded-lg text-sm hover:bg-gray-200 dark:hover:bg-gray-600"
               >
                 <FaDownload /> Export
               </button>
@@ -1371,24 +1477,39 @@ export function App() {
         </DndContext>
 
         {/* Quick Actions Toolbar */}
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-white dark:bg-gray-800 rounded-full shadow-2xl border dark:border-gray-700 px-6 py-3 flex items-center gap-4 z-40">
-          <button className="flex flex-col items-center gap-1 hover:text-blue-600 transition-colors">
+        <div className="text-black fixed bottom-4 left-1/2 -translate-x-1/2 bg-white dark:bg-gray-800 rounded-full shadow-2xl border dark:border-gray-700 px-6 py-3 flex items-center gap-4 z-40">
+          <button
+            onClick={() => navigate('/doctor/lab-results')}
+            className="text-black flex flex-col items-center gap-1 hover:text-blue-600 transition-colors"
+          >
             <FaFlask className="text-lg" />
             <span className="text-xs">Labs</span>
           </button>
-          <button className="flex flex-col items-center gap-1 hover:text-blue-600 transition-colors">
+          <button
+            onClick={() => navigate('/pharmacy')}
+            className="flex flex-col items-center gap-1 hover:text-blue-600 transition-colors"
+          >
             <FaPills className="text-lg" />
             <span className="text-xs">Rx</span>
           </button>
-          <button className="flex flex-col items-center gap-1 hover:text-blue-600 transition-colors">
+          <button
+            onClick={() => navigate('/doctor/schedule')}
+            className="flex flex-col items-center gap-1 hover:text-blue-600 transition-colors"
+          >
             <FaCalendarAlt className="text-lg" />
             <span className="text-xs">Schedule</span>
           </button>
-          <button className="flex flex-col items-center gap-1 hover:text-blue-600 transition-colors">
+          <button
+            onClick={() => navigate('/doctor/patients')}
+            className="flex flex-col items-center gap-1 hover:text-blue-600 transition-colors"
+          >
             <FaUserInjured className="text-lg" />
             <span className="text-xs">Patients</span>
           </button>
-          <button className="flex flex-col items-center gap-1 hover:text-blue-600 transition-colors">
+          <button
+            onClick={() => navigate('/doctor/billing')}
+            className="flex flex-col items-center gap-1 hover:text-blue-600 transition-colors"
+          >
             <FaCreditCard className="text-lg" />
             <span className="text-xs">Billing</span>
           </button>

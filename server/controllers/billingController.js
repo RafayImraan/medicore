@@ -104,6 +104,84 @@ exports.updatePaymentStatus = async (req, res) => {
   }
 };
 
+// Get all bills with filters
+exports.getAllBills = async (req, res) => {
+  try {
+    const { status, search, dateFrom, dateTo, page = 1, limit = 50 } = req.query;
+    const query = {};
+
+    if (status && status !== 'All') {
+      query.paymentStatus = status;
+    }
+
+    if (dateFrom || dateTo) {
+      query.createdAt = {};
+      if (dateFrom) query.createdAt.$gte = new Date(dateFrom);
+      if (dateTo) query.createdAt.$lte = new Date(dateTo);
+    }
+
+    if (search) {
+      const regex = new RegExp(search, 'i');
+      query.$or = [
+        { 'items.description': regex },
+        { paymentMethod: regex }
+      ];
+    }
+
+    const pageNumber = Math.max(parseInt(page, 10) || 1, 1);
+    const limitNumber = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200);
+    const skip = (pageNumber - 1) * limitNumber;
+
+    const bills = await Billing.find(query)
+      .populate({
+        path: 'patientId',
+        populate: { path: 'userId', select: 'name email' }
+      })
+      .populate({
+        path: 'doctorId',
+        populate: { path: 'userId', select: 'name email' },
+        select: 'specialization'
+      })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitNumber);
+
+    const total = await Billing.countDocuments(query);
+
+    const items = bills.map((bill) => ({
+      id: bill._id,
+      patient: bill.patientId?.userId?.name || 'Unknown',
+      service: bill.items?.[0]?.description || 'Service',
+      department: bill.doctorId?.specialization || 'General',
+      amount: bill.subtotal || bill.totalAmount || 0,
+      tax: bill.tax || 0,
+      discount: bill.discount || 0,
+      totalAmount: bill.totalAmount || 0,
+      status: bill.paymentStatus || 'Pending',
+      paymentMethod: bill.paymentMethod || 'N/A',
+      notes: bill.insuranceClaim?.provider ? `Insurance: ${bill.insuranceClaim.provider}` : '',
+      createdAt: bill.createdAt
+    }));
+
+    res.json({ items, total, page: pageNumber, limit: limitNumber });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Delete bill
+exports.deleteBill = async (req, res) => {
+  try {
+    const bill = await Billing.findByIdAndDelete(req.params.id);
+    if (!bill) {
+      return res.status(404).json({ error: 'Bill not found' });
+    }
+    res.json({ message: 'Bill deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 // Get pending bills
 exports.getPendingBills = async (req, res) => {
   try {

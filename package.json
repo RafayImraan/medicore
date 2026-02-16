@@ -2,6 +2,7 @@
   "dependencies": {
     "axios": "^1.12.2",
     "file-saver": "^2.0.5",
+    "puppeteer": "^24.37.3",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "react-grid-layout": "^1.5.2",
@@ -11,7 +12,8 @@
   "scripts": {
     "dev": "vite",
     "build": "cd client && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "screenshots": "node scripts/capture-screenshots.js"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^5.1.2",

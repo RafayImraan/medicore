@@ -1,15 +1,128 @@
 import React, { useEffect, useState, useMemo } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "../../components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "../../components/ui/card";
 import LoadingSpinner from "../../components/LoadingSpinner.jsx";
 import { commonAPI } from "@/services/api";
+import {
+  Users,
+  UserPlus,
+  Search,
+  Filter,
+  Download,
+  Edit3,
+  Trash2,
+  Eye,
+  MoreHorizontal,
+  ChevronLeft,
+  ChevronRight,
+  CheckSquare,
+  Square,
+  BarChart3,
+  PieChart,
+  TrendingUp,
+  Calendar,
+  Phone,
+  Mail,
+  MapPin,
+  Activity,
+  Heart,
+  AlertCircle,
+  CheckCircle,
+  Clock,
+  Star,
+  Award,
+  Shield,
+  Zap
+} from "lucide-react";
+import { PieChart as RechartsPieChart, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
+import toast from 'react-hot-toast';
 
 
 const statuses = [
-  { label: "Stable", color: "green", icon: "✔️" },
-  { label: "Critical", color: "red", icon: "⚠️" },
-  { label: "Recovering", color: "yellow", icon: "🔄" },
-  { label: "Discharged", color: "gray", icon: "🏠" },
+  { label: "Stable", color: "emerald", icon: CheckCircle, bgColor: "bg-emerald-50", textColor: "text-emerald-700", borderColor: "border-emerald-200" },
+  { label: "Critical", color: "red", icon: AlertCircle, bgColor: "bg-red-50", textColor: "text-red-700", borderColor: "border-red-200" },
+  { label: "Recovering", color: "amber", icon: Clock, bgColor: "bg-amber-50", textColor: "text-amber-700", borderColor: "border-amber-200" },
+  { label: "Discharged", color: "slate", icon: CheckCircle, bgColor: "bg-slate-50", textColor: "text-slate-700", borderColor: "border-slate-200" },
+];
+
+// Enhanced fake data for premium demo
+const fakePatients = [
+  {
+    _id: "1",
+    userId: { name: "Sarah Johnson", email: "sarah.j@example.com" },
+    dateOfBirth: "1985-03-15",
+    gender: "Female",
+    phone: "+1 (555) 123-4567",
+    address: "123 Medical Center Dr, Healthcare City, HC 12345",
+    bloodGroup: "A+",
+    medicalHistory: [{ condition: "Hypertension", diagnosedDate: "2023-01-15" }],
+    allergies: ["Penicillin"],
+    emergencyContact: "John Johnson - Brother",
+    insurance: "Blue Cross Blue Shield",
+    createdAt: "2024-01-15T10:30:00Z",
+    status: "Stable"
+  },
+  {
+    _id: "2",
+    userId: { name: "Michael Chen", email: "m.chen@example.com" },
+    dateOfBirth: "1992-07-22",
+    gender: "Male",
+    phone: "+1 (555) 234-5678",
+    address: "456 Wellness Ave, Healthy Town, HT 67890",
+    bloodGroup: "O-",
+    medicalHistory: [{ condition: "Type 2 Diabetes", diagnosedDate: "2023-06-10" }],
+    allergies: ["Sulfa drugs"],
+    emergencyContact: "Lisa Chen - Wife",
+    insurance: "United Healthcare",
+    createdAt: "2024-02-20T14:15:00Z",
+    status: "Recovering"
+  },
+  {
+    _id: "3",
+    userId: { name: "Emily Rodriguez", email: "emily.r@example.com" },
+    dateOfBirth: "1978-11-08",
+    gender: "Female",
+    phone: "+1 (555) 345-6789",
+    address: "789 Care Street, Medical District, MD 34567",
+    bloodGroup: "B+",
+    medicalHistory: [{ condition: "Asthma", diagnosedDate: "2022-09-05" }],
+    allergies: ["Shellfish"],
+    emergencyContact: "Carlos Rodriguez - Husband",
+    insurance: "Aetna",
+    createdAt: "2024-03-10T09:45:00Z",
+    status: "Stable"
+  },
+  {
+    _id: "4",
+    userId: { name: "David Thompson", email: "d.thompson@example.com" },
+    dateOfBirth: "1965-05-30",
+    gender: "Male",
+    phone: "+1 (555) 456-7890",
+    address: "321 Health Boulevard, Wellness City, WC 45678",
+    bloodGroup: "AB+",
+    medicalHistory: [{ condition: "Coronary Artery Disease", diagnosedDate: "2023-11-20" }],
+    allergies: ["None"],
+    emergencyContact: "Maria Thompson - Daughter",
+    insurance: "Humana",
+    createdAt: "2024-01-08T16:20:00Z",
+    status: "Critical"
+  },
+  {
+    _id: "5",
+    userId: { name: "Jessica Park", email: "j.park@example.com" },
+    dateOfBirth: "1995-12-03",
+    gender: "Female",
+    phone: "+1 (555) 567-8901",
+    address: "654 Recovery Road, Healing Town, HT 56789",
+    bloodGroup: "A-",
+    medicalHistory: [{ condition: "Migraine", diagnosedDate: "2023-04-12" }],
+    allergies: ["Ibuprofen"],
+    emergencyContact: "Kevin Park - Father",
+    insurance: "Cigna",
+    createdAt: "2024-02-28T11:10:00Z",
+    status: "Recovering"
+  }
 ];
 
 function formatDate(dateStr) {
@@ -88,32 +201,13 @@ export default function AllPatients() {
       try {
         setLoading(true);
         const data = await commonAPI.getAllPatients();
-        setPatients(data);
+        setPatients(data.length > 0 ? data : fakePatients);
         setError(null);
       } catch (err) {
         console.error("Error fetching patients:", err);
         setError("Failed to load patients");
-        // Use fallback data if API fails
-        setPatients([
-          {
-            id: "1",
-            name: "John Doe",
-            age: 45,
-            gender: "Male",
-            disease: "Hypertension",
-            admissionDate: "2024-01-15",
-            status: "Stable",
-          },
-          {
-            id: "2",
-            name: "Jane Smith",
-            age: 32,
-            gender: "Female",
-            disease: "Diabetes",
-            admissionDate: "2024-02-20",
-            status: "Recovering",
-          },
-        ]);
+        // Use enhanced fake data for premium demo
+        setPatients(fakePatients);
       } finally {
         setLoading(false);
       }
@@ -264,7 +358,7 @@ export default function AllPatients() {
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">All Patients</h1>
+        <h1 className="text-white text-3xl font-bold">All Patients</h1>
         <Button onClick={() => setShowAddModal(true)} className="bg-blue-600 hover:bg-blue-700">
           + Add Patient
         </Button>
@@ -272,7 +366,7 @@ export default function AllPatients() {
 
       <Card className="mb-6">
         <CardHeader>
-          <CardTitle>Filters</CardTitle>
+          <CardTitle className="text-white">Filters</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -319,7 +413,7 @@ export default function AllPatients() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
             <div>
-              <label htmlFor="dateFrom" className="block font-medium">
+              <label htmlFor="dateFrom" className="text-white block font-medium">
                 Admission Date From
               </label>
               <input
@@ -334,7 +428,7 @@ export default function AllPatients() {
               />
             </div>
             <div>
-              <label htmlFor="dateTo" className="block font-medium">
+              <label htmlFor="dateTo" className="text-white block font-medium">
                 Admission Date To
               </label>
               <input

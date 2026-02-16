@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { faker } from "@faker-js/faker";
+import React, { useEffect, useState } from "react";
 import { Particles } from "@tsparticles/react";
+import { apiRequest } from "../services/api";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 
 /*
@@ -27,55 +27,65 @@ import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianG
   - TailwindCSS classes are used; ensure Tailwind is configured.
 */
 
-// -------------------- Mock data generators --------------------
-const makeNearbyHospitals = (n = 4) =>
-  Array.from({ length: n }).map(() => ({
-    id: faker.string.uuid(),
-    name: `${faker.company.name()} Hospital`,
-    distanceKm: (Math.random() * 12 + 0.5).toFixed(1),
-    etaMin: faker.number.int({ min: 5, max: 35 }),
-    bedsAvailable: faker.number.int({ min: 0, max: 20 }),
-    icuAvailable: faker.datatype.boolean(),
-  }));
-
-const workloadTrend = () =>
-  Array.from({ length: 12 }).map((_, i) => ({
-    period: `H${i + 1}`,
-    visits: faker.number.int({ min: 5, max: 40 })
-  }));
-
 // -------------------- Main Component --------------------
 export default function EmergencyPro() {
   const [lang, setLang] = useState('en');
   const [highContrast, setHighContrast] = useState(false);
   const [disasterMode, setDisasterMode] = useState(false);
 
-  // Live/mock states
-  const [erQueue, setErQueue] = useState({ waiting: faker.number.int({ min: 2, max: 20 }), avgWaitMins: faker.number.int({ min: 5, max: 45 }) });
-  const [hospitals, setHospitals] = useState(() => makeNearbyHospitals(5));
-  const [incidents, setIncidents] = useState(() => [
-    { id: faker.string.uuid(), text: 'Multi-vehicle collision, North Bridge — 8 patients', ts: new Date().toLocaleTimeString(), level: 'critical' },
-    { id: faker.string.uuid(), text: 'Firework burn injuries, Central Market — 3 patients', ts: new Date().toLocaleTimeString(), level: 'urgent' }
-  ]);
-  const [workTrend] = useState(() => workloadTrend());
+  // Live data states
+  const [erQueue, setErQueue] = useState({ waiting: 0, avgWaitMins: 0 });
+  const [hospitals, setHospitals] = useState([]);
+  const [incidents, setIncidents] = useState([]);
+  const [workTrend, setWorkTrend] = useState([]);
+  const [metrics, setMetrics] = useState({ erBeds: 0, icuBeds: 0, ventilators: 0, isolation: 0 });
+  const [checklist, setChecklist] = useState({ en: [], ur: [] });
   const [reports, setReports] = useState([]);
 
   // Chatbot
   const [chatOpen, setChatOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState([{ from: 'bot', text: lang === 'en' ? 'Emergency Assistant: describe symptoms or type "ambulance"' : 'ایمرجنسی اسسٹنٹ: علامات بیان کریں یا "ambulance" لکھیں' }]);
 
-  // Effects: simulate live updates
+  // Load emergency data
   useEffect(() => {
-    const id = setInterval(() => {
-      setErQueue(q => ({ waiting: Math.max(0, q.waiting + faker.number.int({ min: -2, max: 3 })), avgWaitMins: Math.max(1, q.avgWaitMins + faker.number.int({ min: -3, max: 4 })) }));
-      // push occasional incident
-      if (Math.random() < 0.25) {
-        setIncidents(prev => [{ id: faker.string.uuid(), text: faker.hacker.phrase(), ts: new Date().toLocaleTimeString(), level: faker.helpers.arrayElement(['info','urgent','critical']) }, ...prev].slice(0,8));
+    let alive = true;
+    const loadEmergency = async () => {
+      try {
+        const data = await apiRequest('/api/public/emergency');
+        if (!alive) return;
+        const hospitalsData = Array.isArray(data.hospitals) ? data.hospitals : [];
+        const incidentsData = Array.isArray(data.incidents) ? data.incidents : [];
+        const checklists = Array.isArray(data.checklists) ? data.checklists : [];
+        const metricsData = data.metrics || {};
+
+        setHospitals(hospitalsData);
+        setIncidents(incidentsData.map((inc) => ({
+          id: inc._id || inc.id,
+          text: inc.text,
+          ts: inc.occurredAt ? new Date(inc.occurredAt).toLocaleTimeString() : new Date().toLocaleTimeString(),
+          level: inc.level || 'info'
+        })));
+        setErQueue({
+          waiting: metricsData.erQueueWaiting || 0,
+          avgWaitMins: metricsData.erWaitMins || 0
+        });
+        setMetrics({
+          erBeds: metricsData.erBeds || 0,
+          icuBeds: metricsData.icuBeds || 0,
+          ventilators: metricsData.ventilators || 0,
+          isolation: metricsData.isolation || 0
+        });
+        setWorkTrend(Array.isArray(metricsData.workloadTrend) ? metricsData.workloadTrend : []);
+        const en = checklists.find((c) => c.language === 'en')?.items || [];
+        const ur = checklists.find((c) => c.language === 'ur')?.items || [];
+        setChecklist({ en, ur });
+      } catch (err) {
+        console.error('Failed to load emergency data:', err);
       }
-      // fluctuate hospitals availability
-      setHospitals(hs => hs.map(h => ({ ...h, bedsAvailable: Math.max(0, h.bedsAvailable + faker.number.int({ min: -2, max: 2 })) })));
-    }, 6000);
-    return () => clearInterval(id);
+    };
+
+    loadEmergency();
+    return () => { alive = false; };
   }, []);
 
   // Accessibility: read text aloud
@@ -104,29 +114,11 @@ export default function EmergencyPro() {
 
   // Incident report submit
   const reportIncident = (payload) => {
-    const newR = { id: faker.string.uuid(), ...payload, ts: new Date().toLocaleString() };
+    const newR = { id: Date.now().toString(), ...payload, ts: new Date().toLocaleString() };
     setReports(r => [newR, ...r]);
     // also add to incidents feed
-    setIncidents(i => [{ id: faker.string.uuid(), text: payload.description, ts: new Date().toLocaleTimeString(), level: 'urgent' }, ...i].slice(0,8));
+    setIncidents(i => [{ id: Date.now().toString(), text: payload.description, ts: new Date().toLocaleTimeString(), level: 'urgent' }, ...i].slice(0,8));
   };
-
-  // Emergency checklist
-  const checklist = useMemo(() => ({
-    en: [
-      'Call emergency number immediately',
-      'If safe, move victim to a safe area',
-      'Provide basic first aid (control bleeding, CPR if needed)',
-      'Keep patient warm and monitor breathing',
-      'Bring ID and medication list to hospital'
-    ],
-    ur: [
-      'فوری طور پر ایمبولینس کو کال کریں',
-      'اگر محفوظ ہو تو مریض کو محفوظ جگہ پر منتقل کریں',
-      'بنیادی فرسٹ ایڈ فراہم کریں (خون روکنا، CPR اگر ضروری ہو)',
-      'مریض کو گرم رکھیں اور سانس کی نگرانی کریں',
-      'ہسپتال لے جاتے وقت شناختی دستاویزات اور ادویات کی فہرست ساتھ رکھیں'
-    ]
-  }), []);
 
   // Export checklist
   const downloadChecklist = () => {
@@ -142,7 +134,7 @@ export default function EmergencyPro() {
   const t = (en, ur) => lang === 'en' ? en : ur;
 
   return (
-    <div className={`${highContrast ? 'contrast-more' : ''} min-h-screen bg-gray-50 dark:bg-gray-900`}>
+    <div className={`${highContrast ? 'contrast-more' : ''} min-h-screen bg-gradient-to-br from-charcoal-950 via-primary-900/20 to-charcoal-950 text-white`}>
       {/* Particles + beacon */}
       <div className="absolute inset-0 -z-10">
         <Particles options={{ background: { color: '#00000000' }, particles: { number: { value: 20 }, size: { value: 2 }, move: { speed: 0.6 }, color: { value: '#ef4444' } } }} />
@@ -209,10 +201,15 @@ export default function EmergencyPro() {
               <div className="text-xs text-gray-400">{t('live (mock)','لائیو (ڈیمو)')}</div>
             </div>
             <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
-              {['ER Beds','ICU Beds','Ventilators','Isolation'].map((label, i) => (
-                <div key={label} className="p-2 rounded border flex items-center justify-between">
-                  <div>{label}</div>
-                  <div className={`font-semibold ${i%3===0 ? 'text-green-700' : i%3===1 ? 'text-yellow-700' : 'text-red-700'}`}>{faker.number.int({ min:0, max: 12 })}</div>
+              {[
+                { label: 'ER Beds', value: metrics.erBeds },
+                { label: 'ICU Beds', value: metrics.icuBeds },
+                { label: 'Ventilators', value: metrics.ventilators },
+                { label: 'Isolation', value: metrics.isolation }
+              ].map((item, i) => (
+                <div key={item.label} className="p-2 rounded border flex items-center justify-between">
+                  <div>{item.label}</div>
+                  <div className={`font-semibold ${i%3===0 ? 'text-green-700' : i%3===1 ? 'text-yellow-700' : 'text-red-700'}`}>{item.value}</div>
                 </div>
               ))}
             </div>

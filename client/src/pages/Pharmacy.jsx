@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo, createContext, useContext } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { faker } from '@faker-js/faker';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -8,65 +7,65 @@ import Fuse from 'fuse.js';
 import {
   ShoppingCart, Search, Menu, X, Palette, User, Info, AlertCircle, Clock, Package,
   Plus, Minus, Trash2, Download, Tag, CheckCircle, Building2, AlertTriangle,
-  Loader2, XCircle
+  Loader2, XCircle, Heart, Star, Filter, SlidersHorizontal, Eye, BarChart3,
+  Zap, Sparkles, Crown, Gem, Leaf, Sun, Moon, Zap as Lightning, Gift, Truck,
+  CreditCard, MapPin, Phone, Mail, Calendar, Award, Save, RotateCcw,
+  ChevronRight, ChevronLeft, UserCheck, Gift as GiftIcon
 } from 'lucide-react';
+import { apiRequest } from '../services/api';
 
 // ==================== TYPES & CONSTANTS ====================
 
 const THEMES = {
+  premium: {
+    primary: '#0F5132', // Dark emerald
+    secondary: '#FF4D4F', // Neon red/orange
+    background: '#0F1720', // Charcoal
+    card: '#1E293B', // Darker charcoal
+    text: '#FFFFFF', // Pure white text for dark backgrounds
+    border: '#334155', // Muted border
+    accent: '#D4AF37', // Luxury gold
+    muted: '#9AA3A8', // Cool grey
+  },
   light: {
-    primary: '#3B82F6',
-    secondary: '#10B981',
-    background: '#F9FAFB',
+    primary: '#0F5132',
+    secondary: '#FF4D4F',
+    background: '#F8FAFC',
     card: '#FFFFFF',
-    text: '#111827',
-    border: '#E5E7EB',
-    accent: '#8B5CF6',
+    text: '#0F1720',
+    border: '#E2E8F0',
+    accent: '#D4AF37',
+    muted: '#64748B',
   },
-  dark: {
-    primary: '#60A5FA',
-    secondary: '#34D399',
-    background: '#111827',
-    card: '#1F2937',
-    text: '#F9FAFB',
-    border: '#374151',
-    accent: '#A78BFA',
+  luxury: {
+    primary: '#D4AF37', // Gold
+    secondary: '#8B4513', // Saddle brown
+    background: '#1A1A1A', // Dark charcoal
+    card: '#2A2A2A', // Darker charcoal
+    text: '#F5F5DC', // Beige
+    border: '#4A4A4A', // Dark grey
+    accent: '#FFD700', // Gold
+    muted: '#B8860B', // Dark goldenrod
   },
-  pastel: {
-    primary: '#A78BFA',
-    secondary: '#F472B6',
-    background: '#FEF3C7',
-    card: '#FFFBEB',
-    text: '#78350F',
-    border: '#FDE68A',
-    accent: '#FB923C',
+  nature: {
+    primary: '#228B22', // Forest green
+    secondary: '#32CD32', // Lime green
+    background: '#F0F8FF', // Alice blue
+    card: '#FFFFFF', // White
+    text: '#2F4F2F', // Dark green
+    border: '#98FB98', // Pale green
+    accent: '#00FF7F', // Spring green
+    muted: '#556B2F', // Dark olive green
   },
-  ocean: {
-    primary: '#06B6D4',
-    secondary: '#14B8A6',
-    background: '#ECFEFF',
-    card: '#F0FDFA',
-    text: '#134E4A',
-    border: '#99F6E4',
-    accent: '#0EA5E9',
-  },
-  carbon: {
-    primary: '#F59E0B',
-    secondary: '#EF4444',
-    background: '#18181B',
-    card: '#27272A',
-    text: '#FAFAFA',
-    border: '#3F3F46',
-    accent: '#FB923C',
-  },
-  mint: {
-    primary: '#10B981',
-    secondary: '#8B5CF6',
-    background: '#F0FDF4',
-    card: '#DCFCE7',
-    text: '#14532D',
-    border: '#BBF7D0',
-    accent: '#059669',
+  minimalist: {
+    primary: '#2C3E50', // Dark blue grey
+    secondary: '#34495E', // Wet asphalt
+    background: '#ECF0F1', // Clouds
+    card: '#FFFFFF', // White
+    text: '#2C3E50', // Dark blue grey
+    border: '#BDC3C7', // Silver
+    accent: '#7F8C8D', // Asbestos
+    muted: '#95A5A6', // Concrete
   },
 };
 
@@ -101,72 +100,6 @@ const CATEGORIES = [
   { id: '14', name: 'Medical Equipment', icon: '🔬', color: '#6366F1' },
 ];
 
-// ==================== DATA GENERATION ====================
-
-const generateMedicines = () => {
-  const pharmacyItems = [
-    { name: "Paracetamol 500mg", category: "Pain Relief", price: 2.50, type: "Tablet" },
-    { name: "Ibuprofen 400mg", category: "Pain Relief", price: 3.00, type: "Tablet" },
-    { name: "Aspirin 75mg", category: "Cardiovascular", price: 1.50, type: "Tablet" },
-    { name: "Naproxen 250mg", category: "Pain Relief", price: 4.00, type: "Tablet" },
-    { name: "Loratadine 10mg", category: "Allergy", price: 3.50, type: "Tablet" },
-    { name: "Cetirizine 10mg", category: "Allergy", price: 2.50, type: "Tablet" },
-    { name: "Fexofenadine 180mg", category: "Allergy", price: 5.00, type: "Tablet" },
-    { name: "Antacid Tablets", category: "Digestive", price: 2.00, type: "Tablet" },
-    { name: "Omeprazole 20mg", category: "Digestive", price: 3.50, type: "Capsule" },
-    { name: "Laxatives", category: "Digestive", price: 3.50, type: "Tablet" },
-    { name: "ORS Solution", category: "Digestive", price: 1.50, type: "Powder" },
-    { name: "Amoxicillin 500mg", category: "Antibiotic", price: 5.00, type: "Capsule" },
-    { name: "Azithromycin 500mg", category: "Antibiotic", price: 8.00, type: "Tablet" },
-    { name: "Ciprofloxacin 500mg", category: "Antibiotic", price: 4.50, type: "Tablet" },
-    { name: "Metformin 500mg", category: "Diabetes", price: 2.00, type: "Tablet" },
-    { name: "Glimepiride 2mg", category: "Diabetes", price: 3.50, type: "Tablet" },
-    { name: "Insulin Injection", category: "Diabetes", price: 15.00, type: "Injection" },
-    { name: "Amlodipine 5mg", category: "Cardiovascular", price: 2.50, type: "Tablet" },
-    { name: "Losartan 50mg", category: "Cardiovascular", price: 3.00, type: "Tablet" },
-    { name: "Atorvastatin 10mg", category: "Cardiovascular", price: 4.00, type: "Tablet" },
-    { name: "Salbutamol Inhaler", category: "Respiratory", price: 12.00, type: "Inhaler" },
-    { name: "Cough Syrup", category: "Respiratory", price: 6.00, type: "Syrup" },
-    { name: "Nasal Spray", category: "Respiratory", price: 5.00, type: "Spray" },
-    { name: "Multivitamin Tablets", category: "Vitamins", price: 6.00, type: "Tablet" },
-    { name: "Vitamin D3 Capsules", category: "Vitamins", price: 5.50, type: "Capsule" },
-    { name: "Vitamin C Tablets", category: "Vitamins", price: 4.00, type: "Tablet" },
-    { name: "Calcium Tablets", category: "Vitamins", price: 4.50, type: "Tablet" },
-    { name: "Iron Supplements", category: "Supplements", price: 3.50, type: "Tablet" },
-    { name: "Omega-3 Capsules", category: "Supplements", price: 7.50, type: "Capsule" },
-    { name: "Protein Powder", category: "Supplements", price: 25.00, type: "Powder" },
-    { name: "Baby Diapers", category: "Baby Care", price: 12.00, type: "Powder" },
-    { name: "Baby Lotion", category: "Baby Care", price: 5.00, type: "Lotion" },
-    { name: "Rash Cream", category: "Baby Care", price: 4.50, type: "Cream" },
-    { name: "Bandages Pack", category: "First Aid", price: 2.00, type: "Gel" },
-    { name: "Antiseptic Cream", category: "First Aid", price: 3.50, type: "Cream" },
-    { name: "Hand Sanitizer", category: "First Aid", price: 3.00, type: "Gel" },
-    { name: "Moisturizer", category: "Skin Care", price: 8.00, type: "Cream" },
-    { name: "Sunscreen", category: "Skin Care", price: 10.00, type: "Cream" },
-    { name: "Acne Cream", category: "Skin Care", price: 6.50, type: "Cream" },
-    { name: "Digital Thermometer", category: "Medical Equipment", price: 8.00, type: "Tablet" },
-    { name: "Blood Pressure Monitor", category: "Medical Equipment", price: 35.00, type: "Tablet" },
-    { name: "Face Masks Pack", category: "Medical Equipment", price: 8.00, type: "Gel" },
-  ];
-
-  return pharmacyItems.map((item) => ({
-    id: faker.string.uuid(),
-    name: item.name,
-    category: item.category,
-    price: item.price,
-    type: item.type,
-    quantity: faker.number.int({ min: 5, max: 150 }),
-    expiry: faker.date.future({ years: 2 }),
-    supplier: faker.company.name(),
-    description: faker.lorem.sentence(),
-    image: 'https://mgx-backend-cdn.metadl.com/generate/images/920366/2026-01-20/8880561c-baf1-4391-9570-888e6472e25a.png',
-    batchNumber: `BATCH-${faker.string.alphanumeric(8).toUpperCase()}`,
-    dosage: `${faker.number.int({ min: 1, max: 3 })} times daily`,
-    sideEffects: [faker.lorem.words(3), faker.lorem.words(3), faker.lorem.words(3)],
-    interactions: [faker.lorem.words(4), faker.lorem.words(4)],
-  }));
-};
-
 // ==================== CONTEXTS ====================
 
 const ThemeContext = createContext();
@@ -191,6 +124,41 @@ const useDebounce = (value, delay = 500) => {
 };
 
 // ==================== COMPONENTS ====================
+
+const SkeletonLoader = () => (
+  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
+    {Array.from({ length: 6 }).map((_, i) => (
+      <motion.div
+        key={i}
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ delay: i * 0.1 }}
+        className="bg-[var(--color-card)] rounded-xl shadow-md overflow-hidden border border-[var(--color-border)]"
+      >
+        <div className="h-48 bg-gradient-to-br from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 animate-pulse" />
+        <div className="p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <div className="flex gap-1">
+              {Array.from({ length: 5 }).map((_, j) => (
+                <div key={j} className="w-3 h-3 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
+              ))}
+            </div>
+            <div className="w-8 h-3 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
+          </div>
+          <div className="h-5 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
+          <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded w-3/4 animate-pulse" />
+          <div className="flex justify-between items-center">
+            <div className="space-y-2">
+              <div className="h-6 bg-gray-300 dark:bg-gray-600 rounded w-16 animate-pulse" />
+              <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded w-12 animate-pulse" />
+            </div>
+            <div className="h-10 bg-gray-300 dark:bg-gray-600 rounded-lg w-20 animate-pulse" />
+          </div>
+        </div>
+      </motion.div>
+    ))}
+  </div>
+);
 
 const Toast = ({ id, type, message, onClose }) => {
   const icons = {
@@ -244,10 +212,10 @@ const Navbar = ({ onSearchChange, onCartClick }) => {
   const themes = [
     { value: 'light', label: 'Light', color: '#3B82F6' },
     { value: 'dark', label: 'Dark', color: '#60A5FA' },
-    { value: 'pastel', label: 'Pastel Health', color: '#A78BFA' },
-    { value: 'ocean', label: 'Ocean Breeze', color: '#06B6D4' },
-    { value: 'carbon', label: 'Carbon', color: '#F59E0B' },
-    { value: 'mint', label: 'Mint', color: '#10B981' },
+    { value: 'premium', label: 'Premium', color: '#0F5132' },
+    { value: 'luxury', label: 'Luxury Gold', color: '#D4AF37' },
+    { value: 'nature', label: 'Nature', color: '#228B22' },
+    { value: 'minimalist', label: 'Minimalist', color: '#2C3E50' },
   ];
 
   return (
@@ -259,8 +227,8 @@ const Navbar = ({ onSearchChange, onCartClick }) => {
               Rx
             </div>
             <div>
-              <h1 className="text-xl font-bold text-[var(--color-text)]">MediCare Pharmacy</h1>
-              <p className="text-xs text-[var(--color-text)] opacity-60">Your Health, Our Priority</p>
+              <h1 className="text-white text-xl font-bold text-[var(--color-text)]">MediCare Pharmacy</h1>
+              <p className="text-white text-xs text-[var(--color-text)] opacity-60">Your Health, Our Priority</p>
             </div>
           </motion.div>
 
@@ -281,6 +249,9 @@ const Navbar = ({ onSearchChange, onCartClick }) => {
           </div>
 
           <div className="flex items-center gap-4">
+            <button onClick={() => setShowFilters(!showFilters)} className="p-2 rounded-lg hover:bg-[var(--color-background)]">
+              <SlidersHorizontal className="w-5 h-5 text-[var(--color-text)]" />
+            </button>
             <div className="relative">
               <button onClick={() => setShowThemeMenu(!showThemeMenu)} className="p-2 rounded-lg hover:bg-[var(--color-background)]">
                 <Palette className="w-5 h-5 text-[var(--color-text)]" />
@@ -325,10 +296,10 @@ const Navbar = ({ onSearchChange, onCartClick }) => {
 
 const CategorySidebar = ({ selectedCategory, onCategorySelect, categoryCounts }) => (
   <div className="bg-[var(--color-card)] rounded-xl shadow-md p-4 border border-[var(--color-border)] sticky top-20">
-    <h2 className="text-xl font-bold text-[var(--color-text)] mb-4 flex items-center gap-2">
+    <h2 className="text-white text-xl font-bold text-[var(--color-text)] mb-4 flex items-center gap-2">
       <span>📋</span>Categories
     </h2>
-    <div className="space-y-2">
+    <div className="text-white bg-[var(--color-background)] space-y-2">
       {CATEGORIES.map((category) => {
         const count = categoryCounts[category.name] || 0;
         const isSelected = selectedCategory === category.name;
@@ -357,10 +328,12 @@ const ProductCard = ({ medicine, onDetailsClick }) => {
   const { addToCart } = useCart();
   const { addNotification } = useNotification();
   const [isAdding, setIsAdding] = useState(false);
+  const [isWishlisted, setIsWishlisted] = useState(false);
 
   const daysUntilExpiry = Math.ceil((new Date(medicine.expiry).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
   const isLowStock = medicine.quantity < 20;
   const isExpiringSoon = daysUntilExpiry < 90;
+  const discountedPrice = medicine.discount > 0 ? medicine.price * (1 - medicine.discount / 100) : medicine.price;
 
   const handleAddToCart = () => {
     setIsAdding(true);
@@ -368,7 +341,7 @@ const ProductCard = ({ medicine, onDetailsClick }) => {
       addToCart({
         medicineId: medicine.id,
         name: medicine.name,
-        price: medicine.price,
+        price: discountedPrice,
         quantity: 1,
         image: medicine.image,
         type: medicine.type,
@@ -378,41 +351,108 @@ const ProductCard = ({ medicine, onDetailsClick }) => {
     }, 300);
   };
 
+  const toggleWishlist = () => {
+    setIsWishlisted(!isWishlisted);
+    addNotification('success', isWishlisted ? 'Removed from wishlist' : 'Added to wishlist');
+  };
+
+  const renderStars = (rating) => {
+    return Array.from({ length: 5 }, (_, i) => (
+      <Star
+        key={i}
+        className={`w-3 h-3 ${i < Math.floor(rating) ? 'text-yellow-400 fill-current' : 'text-gray-300'}`}
+      />
+    ));
+  };
+
   return (
     <motion.div
       layout
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{ opacity: 1, scale: 1 }}
       whileHover={{ y: -8, scale: 1.02 }}
-      className="group relative bg-[var(--color-card)] rounded-xl shadow-md hover:shadow-2xl transition-all duration-300 overflow-hidden border border-[var(--color-border)]"
+      className="group relative bg-[var(--color-card)] rounded-xl shadow-md hover:shadow-2xl transition-all duration-300 overflow-hidden border border-[var(--color-border)] backdrop-blur-sm"
     >
-      <div className="relative h-48 bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-secondary)] bg-opacity-10 overflow-hidden">
-        <img src={medicine.image} alt={medicine.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" />
-        <div className="absolute top-2 left-2 flex flex-col gap-1">
-          <span className={`px-2 py-1 rounded-full text-xs font-medium ${TYPE_COLORS[medicine.type] || 'bg-gray-100 text-gray-800'}`}>
-            {medicine.type}
+      {/* Premium badges */}
+      <div className="absolute top-2 left-2 flex flex-col gap-1 z-10">
+        {medicine.isPopular && (
+          <span className="px-2 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-purple-500 to-pink-500 text-white flex items-center gap-1 shadow-lg">
+            <Crown className="w-3 h-3" />Popular
           </span>
-          {isLowStock && (
-            <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 flex items-center gap-1">
-              <AlertCircle className="w-3 h-3" />Low Stock
-            </span>
-          )}
-          {isExpiringSoon && (
-            <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 flex items-center gap-1">
-              <Clock className="w-3 h-3" />Expiring Soon
-            </span>
-          )}
-        </div>
-        <button onClick={() => onDetailsClick(medicine)} className="absolute top-2 right-2 p-2 bg-white dark:bg-gray-800 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110">
-          <Info className="w-4 h-4 text-[var(--color-primary)]" />
-        </button>
+        )}
+        {medicine.isNew && (
+          <span className="px-2 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-green-500 to-teal-500 text-white flex items-center gap-1 shadow-lg">
+            <Sparkles className="w-3 h-3" />New
+          </span>
+        )}
+        {medicine.discount > 0 && (
+          <span className="px-2 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-red-500 to-orange-500 text-white flex items-center gap-1 shadow-lg">
+            <Tag className="w-3 h-3" />-{medicine.discount}%
+          </span>
+        )}
+        <span className={`px-2 py-1 rounded-full text-xs font-medium ${TYPE_COLORS[medicine.type] || 'bg-gray-100 text-gray-800'} shadow-lg`}>
+          {medicine.type}
+        </span>
+        {isLowStock && (
+          <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 flex items-center gap-1 shadow-lg">
+            <AlertCircle className="w-3 h-3" />Low Stock
+          </span>
+        )}
+        {isExpiringSoon && (
+          <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 flex items-center gap-1 shadow-lg">
+            <Clock className="w-3 h-3" />Expiring Soon
+          </span>
+        )}
       </div>
 
-      <div className="p-4">
+      {/* Action buttons */}
+      <div className="absolute top-2 right-2 flex flex-col gap-2 z-10">
+        <motion.button
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
+          onClick={toggleWishlist}
+          className={`p-2 rounded-full shadow-lg transition-all ${isWishlisted ? 'bg-red-500 text-white' : 'bg-white/90 text-gray-600 hover:bg-white'}`}
+        >
+          <Heart className={`w-4 h-4 ${isWishlisted ? 'fill-current' : ''}`} />
+        </motion.button>
+        <motion.button
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
+          onClick={() => onDetailsClick(medicine)}
+          className="p-2 bg-white/90 text-[var(--color-primary)] rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white"
+        >
+          <Eye className="w-4 h-4" />
+        </motion.button>
+      </div>
+
+      {/* Product image with premium overlay */}
+      <div className="relative h-48 overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-[var(--color-primary)]/20 to-[var(--color-secondary)]/20 z-0" />
+        <img
+          src={medicine.image}
+          alt={medicine.name}
+          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500 relative z-10"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-20" />
+      </div>
+
+      {/* Product details */}
+      <div className="p-4 relative">
+        {/* Rating */}
+        <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center gap-1">
+            {renderStars(medicine.rating)}
+          </div>
+          <span className="text-xs text-[var(--color-text)] opacity-60">
+            ({medicine.reviews})
+          </span>
+        </div>
+
         <h3 className="font-semibold text-lg text-[var(--color-text)] line-clamp-2 mb-2 group-hover:text-[var(--color-primary)] transition-colors">
           {medicine.name}
         </h3>
         <p className="text-sm text-[var(--color-text)] opacity-60 mb-3">{medicine.category}</p>
+
         <div className="flex items-center justify-between mb-3 text-xs text-[var(--color-text)] opacity-70">
           <div className="flex items-center gap-1">
             <Package className="w-3 h-3" />
@@ -423,16 +463,36 @@ const ProductCard = ({ medicine, onDetailsClick }) => {
             <span>{daysUntilExpiry}d</span>
           </div>
         </div>
+
+        {/* Price section */}
         <div className="flex items-center justify-between">
-          <div>
-            <span className="text-2xl font-bold text-[var(--color-primary)]">${medicine.price.toFixed(2)}</span>
-            <span className="text-xs text-[var(--color-text)] opacity-60 ml-1">/ unit</span>
+          <div className="flex flex-col">
+            {medicine.discount > 0 ? (
+              <>
+                <span className="text-2xl font-bold text-[var(--color-primary)]">${discountedPrice.toFixed(2)}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-[var(--color-text)] opacity-60 line-through">${medicine.price.toFixed(2)}</span>
+                  <span className="text-xs bg-red-100 text-red-600 px-2 py-1 rounded-full font-medium">
+                    Save ${(medicine.price - discountedPrice).toFixed(2)}
+                  </span>
+                </div>
+              </>
+            ) : (
+              <>
+                <span className="text-2xl font-bold text-[var(--color-primary)]">${medicine.price.toFixed(2)}</span>
+                <span className="text-xs text-[var(--color-text)] opacity-60">/ unit</span>
+              </>
+            )}
           </div>
           <motion.button
             whileTap={{ scale: 0.95 }}
             onClick={handleAddToCart}
             disabled={isAdding || medicine.quantity === 0}
-            className={`px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2 ${isAdding || medicine.quantity === 0 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-[var(--color-primary)] text-white hover:bg-opacity-90 shadow-lg'}`}
+            className={`px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2 shadow-lg ${
+              isAdding || medicine.quantity === 0
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                : 'bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-secondary)] text-white hover:shadow-xl'
+            }`}
           >
             <ShoppingCart className="w-4 h-4" />
             {isAdding ? 'Adding...' : 'Add'}
@@ -640,12 +700,12 @@ const CartDrawer = ({ isOpen, onClose }) => {
       {isOpen && (
         <>
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm z-40" />
-          <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="fixed right-0 top-0 h-full w-full sm:w-[480px] bg-[var(--color-card)] shadow-2xl z-50 flex flex-col">
+          <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="text-white fixed right-0 top-0 h-full w-full sm:w-[480px] bg-black dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700 shadow-2xl z-50 flex flex-col">
             <div className="flex items-center justify-between p-6 border-b border-[var(--color-border)]">
               <div className="flex items-center gap-3">
                 <ShoppingCart className="w-6 h-6 text-[var(--color-primary)]" />
                 <div>
-                  <h2 className="text-2xl font-bold text-[var(--color-text)]">Shopping Cart</h2>
+                  <h2 className="text-white text-2xl font-bold text-[var(--color-text)]">Shopping Cart</h2>
                   <p className="text-sm text-[var(--color-text)] opacity-60">{cart.length} items</p>
                 </div>
               </div>
@@ -767,7 +827,8 @@ const CartDrawer = ({ isOpen, onClose }) => {
   );
 };
 
-// ==================== MAIN COMPONENT ====================
+// ==================== NEW PHASE 2 COMPONENTS ====================
+
 
 const PharmacyDashboard = () => {
   const [theme, setThemeState] = useState(() => localStorage.getItem('pharmacy-theme') || 'light');
@@ -777,12 +838,22 @@ const PharmacyDashboard = () => {
   });
   const [discount, setDiscount] = useState(0);
   const [notifications, setNotifications] = useState([]);
-  const [medicines] = useState(generateMedicines());
+  const [medicines, setMedicines] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedMedicine, setSelectedMedicine] = useState(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [filters, setFilters] = useState({
+    priceRange: [0, 50],
+    stockLevel: 'all', // all, low, medium, high
+    expiryDays: 365,
+    rating: 0,
+    showDiscounted: false,
+    showPopular: false,
+    showNew: false,
+  });
+  const [showFilters, setShowFilters] = useState(false);
 
   const debouncedSearch = useDebounce(searchQuery, 300);
 
@@ -794,6 +865,25 @@ const PharmacyDashboard = () => {
     document.documentElement.className = theme === 'dark' || theme === 'carbon' ? 'dark' : '';
     localStorage.setItem('pharmacy-theme', theme);
   }, [theme]);
+
+  useEffect(() => {
+    let alive = true;
+    const loadMedicines = async () => {
+      setIsLoading(true);
+      try {
+        const data = await apiRequest('/api/public/pharmacy');
+        if (!alive) return;
+        setMedicines(Array.isArray(data) ? data.map(item => ({ ...item, id: item.id || item._id })) : []);
+      } catch (err) {
+        console.error('Failed to load pharmacy catalog:', err);
+        if (alive) setMedicines([]);
+      } finally {
+        if (alive) setIsLoading(false);
+      }
+    };
+    loadMedicines();
+    return () => { alive = false; };
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('pharmacy-cart', JSON.stringify(cart));
@@ -856,18 +946,59 @@ const PharmacyDashboard = () => {
   const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   const filteredMedicines = useMemo(() => {
-    setIsLoading(true);
     let result = medicines;
+
+    // Category filter
     if (selectedCategory !== 'All') {
       result = result.filter((med) => med.category === selectedCategory);
     }
+
+    // Search filter
     if (debouncedSearch.trim()) {
       const fuse = new Fuse(result, { keys: ['name', 'category', 'type'], threshold: 0.3 });
       result = fuse.search(debouncedSearch).map((r) => r.item);
     }
-    setTimeout(() => setIsLoading(false), 100);
+
+    // Price range filter
+    result = result.filter((med) => {
+      const price = med.discount > 0 ? med.price * (1 - med.discount / 100) : med.price;
+      return price >= filters.priceRange[0] && price <= filters.priceRange[1];
+    });
+
+    // Stock level filter
+    if (filters.stockLevel !== 'all') {
+      result = result.filter((med) => {
+        switch (filters.stockLevel) {
+          case 'low':
+            return med.quantity <= 20;
+          case 'medium':
+            return med.quantity > 20 && med.quantity <= 100;
+          case 'high':
+            return med.quantity > 100;
+          default:
+            return true;
+        }
+      });
+    }
+
+    // Rating filter
+    if (filters.rating > 0) {
+      result = result.filter((med) => med.rating >= filters.rating);
+    }
+
+    // Special filters
+    if (filters.showDiscounted) {
+      result = result.filter((med) => med.discount > 0);
+    }
+    if (filters.showPopular) {
+      result = result.filter((med) => med.isPopular);
+    }
+    if (filters.showNew) {
+      result = result.filter((med) => med.isNew);
+    }
+
     return result;
-  }, [selectedCategory, debouncedSearch, medicines]);
+  }, [selectedCategory, debouncedSearch, medicines, filters]);
 
   const categoryCounts = useMemo(() => {
     const counts = { All: medicines.length };
@@ -883,6 +1014,125 @@ const PharmacyDashboard = () => {
         <NotificationContext.Provider value={{ notifications, addNotification, removeNotification }}>
           <div className="min-h-screen bg-[var(--color-background)] transition-colors duration-300">
             <Navbar onSearchChange={setSearchQuery} onCartClick={() => setIsCartOpen(true)} />
+
+            {/* Filter Panel */}
+            <AnimatePresence>
+              {showFilters && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="bg-[var(--color-card)] border-b border-[var(--color-border)] overflow-hidden"
+                >
+                  <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                      {/* Price Range */}
+                      <div>
+                        <label className="block text-sm font-medium text-[var(--color-text)] mb-2">Price Range</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            value={filters.priceRange[0]}
+                            onChange={(e) => setFilters(prev => ({ ...prev, priceRange: [Number(e.target.value), prev.priceRange[1]] }))}
+                            className="w-full px-3 py-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+                            placeholder="Min"
+                          />
+                          <span className="text-[var(--color-text)]">-</span>
+                          <input
+                            type="number"
+                            value={filters.priceRange[1]}
+                            onChange={(e) => setFilters(prev => ({ ...prev, priceRange: [prev.priceRange[0], Number(e.target.value)] }))}
+                            className="w-full px-3 py-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+                            placeholder="Max"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Stock Level */}
+                      <div>
+                        <label className="block text-sm font-medium text-[var(--color-text)] mb-2">Stock Level</label>
+                        <select
+                          value={filters.stockLevel}
+                          onChange={(e) => setFilters(prev => ({ ...prev, stockLevel: e.target.value }))}
+                          className="w-full px-3 py-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+                        >
+                          <option value="all">All Stock Levels</option>
+                          <option value="low">Low Stock (≤20)</option>
+                          <option value="medium">Medium Stock (21-100)</option>
+                          <option value="high">High Stock (≥100)</option>
+                        </select>
+                      </div>
+
+                      {/* Rating */}
+                      <div>
+                        <label className="block text-sm font-medium text-[var(--color-text)] mb-2">Minimum Rating</label>
+                        <select
+                          value={filters.rating}
+                          onChange={(e) => setFilters(prev => ({ ...prev, rating: Number(e.target.value) }))}
+                          className="w-full px-3 py-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+                        >
+                          <option value={0}>Any Rating</option>
+                          <option value={3}>3+ Stars</option>
+                          <option value={4}>4+ Stars</option>
+                          <option value={4.5}>4.5+ Stars</option>
+                        </select>
+                      </div>
+
+                      {/* Special Filters */}
+                      <div>
+                        <label className="block text-sm font-medium text-[var(--color-text)] mb-2">Special Filters</label>
+                        <div className="space-y-2">
+                          <label className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={filters.showDiscounted}
+                              onChange={(e) => setFilters(prev => ({ ...prev, showDiscounted: e.target.checked }))}
+                              className="rounded border-[var(--color-border)] text-[var(--color-primary)] focus:ring-[var(--color-primary)]"
+                            />
+                            <span className="text-sm text-[var(--color-text)]">Discounted Only</span>
+                          </label>
+                          <label className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={filters.showPopular}
+                              onChange={(e) => setFilters(prev => ({ ...prev, showPopular: e.target.checked }))}
+                              className="rounded border-[var(--color-border)] text-[var(--color-primary)] focus:ring-[var(--color-primary)]"
+                            />
+                            <span className="text-sm text-[var(--color-text)]">Popular Only</span>
+                          </label>
+                          <label className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={filters.showNew}
+                              onChange={(e) => setFilters(prev => ({ ...prev, showNew: e.target.checked }))}
+                              className="rounded border-[var(--color-border)] text-[var(--color-primary)] focus:ring-[var(--color-primary)]"
+                            />
+                            <span className="text-sm text-[var(--color-text)]">New Only</span>
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end mt-4">
+                      <button
+                        onClick={() => setFilters({
+                          priceRange: [0, 50],
+                          stockLevel: 'all',
+                          expiryDays: 365,
+                          rating: 0,
+                          showDiscounted: false,
+                          showPopular: false,
+                          showNew: false,
+                        })}
+                        className="px-4 py-2 text-sm text-[var(--color-text)] hover:bg-[var(--color-background)] rounded-lg transition-colors"
+                      >
+                        Reset Filters
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             <div className="relative h-64 overflow-hidden">
               <img src="https://mgx-backend-cdn.metadl.com/generate/images/920366/2026-01-20/a713a997-9cf9-4a0d-8346-993300e60657.png" alt="Pharmacy" className="w-full h-full object-cover" />
@@ -905,23 +1155,21 @@ const PharmacyDashboard = () => {
                   <CategorySidebar selectedCategory={selectedCategory} onCategorySelect={setSelectedCategory} categoryCounts={categoryCounts} />
                 </div>
 
-                <div className="lg:col-span-3">
-                  <div className="mb-6 flex items-center justify-between">
+                <div className="text-white lg:col-span-3">
+                  <div className="text-white mb-6 flex items-center justify-between">
                     <div>
-                      <h2 className="text-2xl font-bold text-[var(--color-text)]">{selectedCategory === 'All' ? 'All Medicines' : selectedCategory}</h2>
-                      <p className="text-[var(--color-text)] opacity-60">{filteredMedicines.length} products found</p>
+                      <h2 className="text-white text-2xl font-bold text-[var(--color-text)]">{selectedCategory === 'All' ? 'All Medicines' : selectedCategory}</h2>
+                      <p className="text-white text-[var(--color-text)] opacity-60">{filteredMedicines.length} products found</p>
                     </div>
                   </div>
 
                   {isLoading ? (
-                    <div className="flex items-center justify-center h-64">
-                      <Loader2 className="w-12 h-12 text-[var(--color-primary)] animate-spin" />
-                    </div>
+                    <SkeletonLoader />
                   ) : filteredMedicines.length === 0 ? (
                     <div className="text-center py-16">
                       <div className="text-6xl mb-4">🔍</div>
-                      <h3 className="text-2xl font-bold text-[var(--color-text)] mb-2">No medicines found</h3>
-                      <p className="text-[var(--color-text)] opacity-60">Try adjusting your search or filter</p>
+                      <h3 className="text-white text-2xl font-bold text-[var(--color-text)] mb-2">No medicines found</h3>
+                      <p className="text-white text-[var(--color-text)] opacity-60">Try adjusting your search or filter</p>
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">

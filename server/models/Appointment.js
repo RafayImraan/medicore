@@ -24,6 +24,9 @@ const appointmentSchema = new mongoose.Schema({
     type: Date,
     required: true
   },
+  slot: {
+    type: Date
+  },
   appointmentTime: {
     type: String,
     required: true

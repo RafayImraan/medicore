@@ -14,12 +14,14 @@ export default defineConfig({
     },
   },
   server: {
+    host: true, // Listen on all interfaces to avoid localhost issues on Windows
+    port: 5173,
+    strictPort: true, // Prevent automatic port changes
     watch: {
-      usePolling: false,
+      usePolling: true, // Use polling for file watching on Windows
     },
-    hmr: {
-      timeout: 60000, // Increase HMR timeout to 60 seconds
-    },
+    // Disable HMR websocket in this environment to avoid repeated ws://localhost:5173 connection failures.
+    hmr: false,
     proxy: {
       '/api': {
         target: 'http://localhost:5000',

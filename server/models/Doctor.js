@@ -32,6 +32,7 @@ const doctorSchema = new mongoose.Schema({
     type: Number,
     required: true
   },
+  languages: [{ type: String, default: [] }],
   availability: [{
     day: {
       type: String,

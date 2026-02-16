@@ -6,6 +6,36 @@ exports.logActivity = async (data) => {
   return await ActivityLog.logActivity(data);
 };
 
+// Public log endpoint (no auth required)
+exports.logPublicActivity = async (req, res) => {
+  try {
+    const {
+      action = 'ui_click',
+      resource = 'ui',
+      description = 'UI interaction',
+      details = {},
+      severity = 'low',
+      status = 'success'
+    } = req.body || {};
+
+    await ActivityLog.logActivity({
+      action,
+      resource,
+      description,
+      details,
+      severity,
+      status,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Log public activity error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 // Get user activity logs
 exports.getUserActivity = async (req, res) => {
   try {

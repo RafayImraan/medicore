@@ -117,6 +117,42 @@ const settingsSchema = new mongoose.Schema({
     }
   },
 
+  // Integration Status
+  integrations: {
+    lab: {
+      status: { type: String, default: 'online' },
+      uptime: { type: Number, default: 99.9 },
+      lastSync: { type: Date, default: Date.now }
+    },
+    pharmacy: {
+      status: { type: String, default: 'online' },
+      uptime: { type: Number, default: 99.8 },
+      lastSync: { type: Date, default: Date.now }
+    },
+    insurance: {
+      status: { type: String, default: 'online' },
+      uptime: { type: Number, default: 98.5 },
+      lastSync: { type: Date, default: Date.now }
+    },
+    ambulance: {
+      status: { type: String, default: 'online' },
+      uptime: { type: Number, default: 99.7 },
+      fleetSize: { type: Number, default: 25 },
+      available: { type: Number, default: 20 }
+    },
+    privateJets: {
+      status: { type: String, default: 'online' },
+      uptime: { type: Number, default: 100 },
+      fleetSize: { type: Number, default: 3 },
+      available: { type: Number, default: 2 }
+    },
+    concierge: {
+      status: { type: String, default: 'online' },
+      uptime: { type: Number, default: 99.9 },
+      activeRequests: { type: Number, default: 5 }
+    }
+  },
+
   // Social Media Links
   socialMedia: {
     facebook: String,

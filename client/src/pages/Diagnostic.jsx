@@ -5,7 +5,7 @@ import {
   LineChart, Line, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer,
   CartesianGrid
 } from 'recharts';
-import { BellIcon, FileDownIcon, SunIcon, MoonIcon, Search, ChevronDown, X, DownloadCloud, Check, Loader2 } from 'lucide-react';
+import { BellIcon, FileDownIcon, SunIcon, MoonIcon, Search, ChevronDown, X, DownloadCloud, Check, Loader2, AlertTriangleIcon, CheckCircleIcon } from 'lucide-react';
 import clsx from 'clsx';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
@@ -205,8 +205,8 @@ const Diagnostics = ({ role = 'admin' /* 'doctor', 'technician', 'admin' */ }) =
       }
       setTests(expanded);
       setNotifications([
-        { id: 1, message: 'New MRI test requested for Ahmed Ali', time: '2m', action: { type: 'view', id: 'T003' }, priority: 'high' },
-        { id: 2, message: 'Blood test report uploaded for Fatima Noor', time: '5m', action: { type: 'view', id: 'T004' }, priority: 'normal' },
+        { id: 1, message: 'New MRI test requested for Ahmed Ali', time: '2m', action: { type: 'view', id: 'T003' }, priority: 'high', read: false },
+        { id: 2, message: 'Blood test report uploaded for Fatima Noor', time: '5m', action: { type: 'view', id: 'T004' }, priority: 'normal', read: false },
       ]);
       setLoading(false);
     }, 600);
@@ -253,7 +253,7 @@ const Diagnostics = ({ role = 'admin' /* 'doctor', 'technician', 'admin' */ }) =
             clone[idx] = { ...item, progress: newProg, status: newProg >= 100 ? STATUS.COMPLETED : STATUS.IN_PROGRESS };
             // push notification
             if (newProg >= 100) {
-              setNotifications(n => [{ id: Date.now(), message: `${item.name} completed for ${item.patient}`, time: 'now', action: { type: 'view', id: item.id }, priority: 'normal' }, ...n].slice(0, 50));
+              setNotifications(n => [{ id: Date.now(), message: `${item.name} completed for ${item.patient}`, time: 'now', action: { type: 'view', id: item.id }, priority: 'normal', read: false }, ...n].slice(0, 50));
             }
           } else if (item.status === STATUS.PENDING) {
             // in some cases move to in-progress
@@ -403,7 +403,7 @@ const Diagnostics = ({ role = 'admin' /* 'doctor', 'technician', 'admin' */ }) =
 
   // Render
   return (
-    <div className={clsx('p-6 transition duration-300 min-h-screen', darkMode ? 'bg-gray-900 text-white' : 'bg-gray-100 text-black')}>
+    <div className={clsx('min-h-screen bg-gradient-to-br from-charcoal-950 via-primary-900/20 to-charcoal-950 p-6 transition duration-300 text-white')}>
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
         <div>
@@ -416,7 +416,7 @@ const Diagnostics = ({ role = 'admin' /* 'doctor', 'technician', 'admin' */ }) =
             <button onClick={() => { setDarkMode(dm => !dm); }} title="Toggle theme" className="p-2 rounded">
               {darkMode ? <SunIcon className="w-5 h-5" /> : <MoonIcon className="w-5 h-5" />}
             </button>
-            <label className="flex items-center gap-2 text-sm">
+            <label className="text-black flex items-center gap-2 text-sm">
               <input type="checkbox" checked={highContrast} onChange={(e) => setHighContrast(e.target.checked)} />
               High Contrast
             </label>
@@ -425,30 +425,96 @@ const Diagnostics = ({ role = 'admin' /* 'doctor', 'technician', 'admin' */ }) =
           <div className="relative">
             <button
               title="Notifications"
-              className="p-2 rounded-full bg-white dark:bg-gray-800 shadow flex items-center gap-2"
+              className="text-black p-3 rounded-full bg-gradient-to-r from-yellow-400 via-yellow-500 to-yellow-600 shadow-lg hover:shadow-xl transition-all duration-300 flex items-center gap-2 animate-pulse"
             >
-              <BellIcon className="w-5 h-5" />
-              <span className="ml-1 text-xs bg-red-500 text-white rounded-full px-2">{notifications.length}</span>
+              <BellIcon className="w-5 h-5 text-white" />
+              <span className="ml-1 text-xs bg-red-600 text-white rounded-full px-2 py-1 font-bold shadow-md">{notifications.filter(n => !n.read).length}</span>
             </button>
-            {/* Dropdown */}
-            <div className="absolute right-0 mt-2 w-96 bg-white dark:bg-gray-800 rounded shadow z-30 p-2">
-              <div className="flex items-center justify-between px-2 pb-2 border-b border-gray-200 dark:border-gray-700">
-                <div className="font-semibold">Notifications</div>
-                <div className="flex items-center gap-2">
-                  <button onClick={() => { setNotifications([]); }} className="text-sm text-gray-500">Clear</button>
+            {/* Enhanced Dropdown */}
+            <div className="absolute right-0 mt-3 w-96 bg-gradient-to-br from-white via-gray-50 to-gray-100 dark:from-gray-800 dark:via-gray-900 dark:to-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden">
+              <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 p-4">
+                <div className="flex items-center justify-between">
+                  <div className="text-white font-bold text-lg flex items-center gap-2">
+                    <BellIcon className="w-6 h-6" />
+                    Notifications
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setNotifications(n => n.map(notif => ({ ...notif, read: true })))}
+                      className="text-white/80 hover:text-white text-sm px-3 py-1 rounded-lg bg-white/20 hover:bg-white/30 transition-all duration-200"
+                      title="Mark all as read"
+                    >
+                      <CheckCircleIcon className="w-4 h-4 inline mr-1" />
+                      Mark Read
+                    </button>
+                    <button
+                      onClick={() => setNotifications([])}
+                      className="text-white/80 hover:text-white text-sm px-3 py-1 rounded-lg bg-white/20 hover:bg-white/30 transition-all duration-200"
+                      title="Clear all"
+                    >
+                      Clear
+                    </button>
+                  </div>
                 </div>
               </div>
-              <div className="max-h-64 overflow-y-auto">
-                {notifications.length === 0 && <div className="p-4 text-sm text-gray-500">No notifications</div>}
-                {notifications.map(n => (
-                  <div key={n.id} className={clsx('p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700 flex items-start gap-2', n.priority === 'high' && 'border-l-4 border-red-500')}>
-                    <div className="flex-1">
-                      <div className="text-sm">{n.message}</div>
-                      <div className="text-xs text-gray-400">{n.time}</div>
-                      <div className="mt-2">
-                        <button onClick={() => handleNotificationAction(n)} className="text-xs bg-blue-500 text-white px-3 py-1 rounded">View</button>
+              <div className="max-h-80 overflow-y-auto p-2">
+                {notifications.length === 0 && (
+                  <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                    <BellIcon className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                    <div className="text-sm">No notifications</div>
+                  </div>
+                )}
+                {notifications.map((n, index) => (
+                  <div
+                    key={n.id}
+                    className={clsx(
+                      'group relative p-4 mb-2 rounded-xl transition-all duration-300 hover:scale-[1.02] hover:shadow-lg',
+                      n.read ? 'bg-white/50 dark:bg-gray-700/50 opacity-75' : 'bg-white dark:bg-gray-700 shadow-md',
+                      n.priority === 'high' && !n.read && 'animate-pulse border-l-4 border-red-500 bg-gradient-to-r from-red-50 to-white dark:from-red-900/20 dark:to-gray-700',
+                      'transform translate-y-0 hover:-translate-y-1'
+                    )}
+                    style={{ animationDelay: `${index * 100}ms` }}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 mt-1">
+                        {n.priority === 'high' ? (
+                          <AlertTriangleIcon className="w-5 h-5 text-red-500" />
+                        ) : (
+                          <BellIcon className="w-5 h-5 text-blue-500" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className={clsx('text-sm font-medium', n.read ? 'text-gray-600 dark:text-gray-400' : 'text-gray-900 dark:text-gray-100')}>
+                          {n.message}
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-2">
+                          <span>{n.time}</span>
+                          {n.read && <CheckCircleIcon className="w-3 h-3 text-green-500" />}
+                        </div>
+                        <div className="mt-3 flex items-center gap-2">
+                          <button
+                            onClick={() => {
+                              handleNotificationAction(n);
+                              setNotifications(prev => prev.map(notif => notif.id === n.id ? { ...notif, read: true } : notif));
+                            }}
+                            className="text-xs bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-4 py-2 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-105"
+                          >
+                            View
+                          </button>
+                          {!n.read && (
+                            <button
+                              onClick={() => setNotifications(prev => prev.map(notif => notif.id === n.id ? { ...notif, read: true } : notif))}
+                              className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-all duration-200"
+                            >
+                              Mark Read
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
+                    {!n.read && (
+                      <div className="absolute top-2 right-2 w-2 h-2 bg-blue-500 rounded-full animate-ping"></div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -477,11 +543,11 @@ const Diagnostics = ({ role = 'admin' /* 'doctor', 'technician', 'admin' */ }) =
             <Search className="absolute right-3 top-3 w-4 h-4 text-gray-400" />
           </div>
 
-          <select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)} className="p-2 border rounded">
+          <select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)} className="text-black p-2 border rounded">
             {categories.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
 
-          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="p-2 border rounded">
+          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="text-black p-2 border rounded">
             <option value="All">All</option>
             <option value={STATUS.PENDING}>Pending</option>
             <option value={STATUS.IN_PROGRESS}>In Progress</option>
@@ -508,14 +574,14 @@ const Diagnostics = ({ role = 'admin' /* 'doctor', 'technician', 'admin' */ }) =
               <option value="patientDesc">Patient Z→A</option>
               <option value="priority">Priority</option>
             </select>
-            <button onClick={clearFilters} className="p-2 bg-gray-100 dark:bg-gray-700 rounded">Reset</button>
-            <button onClick={() => setCompactMode(m => !m)} className="p-2 bg-gray-100 dark:bg-gray-700 rounded">{compactMode ? 'Normal' : 'Compact'}</button>
+            <button onClick={clearFilters} className="text-black p-2 bg-gray-100 dark:bg-gray-700 rounded">Reset</button>
+            <button onClick={() => setCompactMode(m => !m)} className="text-black p-2 bg-gray-100 dark:bg-gray-700 rounded">{compactMode ? 'Normal' : 'Compact'}</button>
           </div>
         </div>
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <div className="text-black grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <KPI title="Total Tests Today" value={kpis.totalToday} delta={5} icon={<svg width="20" height="20" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2L3 7v6c0 5 3.7 9.7 9 11 5.3-1.3 9-6 9-11V7l-9-5z" /></svg>} />
         <KPI title="Pending Tests" value={kpis.pending} delta={-2} icon={<svg width="20" height="20" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a10 10 0 100 20 10 10 0 000-20zm1 11H7V9h6v4z" /></svg>} />
         <KPI title="Completion Rate" value={`${kpis.completedRate}%`} delta={3} icon={<svg width="20" height="20" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a10 10 0 100 20 10 10 0 000-20z" /></svg>} />
@@ -526,7 +592,7 @@ const Diagnostics = ({ role = 'admin' /* 'doctor', 'technician', 'admin' */ }) =
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="font-bold">Test Distribution</h3>
+            <h3 className="text-black font-bold">Test Distribution</h3>
             <div className="text-sm text-gray-400">by category</div>
           </div>
           <div style={{ height: 220 }}>
@@ -549,7 +615,7 @@ const Diagnostics = ({ role = 'admin' /* 'doctor', 'technician', 'admin' */ }) =
 
         <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="font-bold">Test Completion Trend</h3>
+            <h3 className="text-black font-bold">Test Completion Trend</h3>
             <div className="text-sm text-gray-400">last 14 days</div>
           </div>
           <div style={{ height: 220 }}>
@@ -580,7 +646,7 @@ const Diagnostics = ({ role = 'admin' /* 'doctor', 'technician', 'admin' */ }) =
 
         <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="font-bold">Lab Technician Activity</h3>
+            <h3 className="text-black font-bold">Lab Technician Activity</h3>
             <div className="text-sm text-gray-400">reports/day</div>
           </div>
           <div style={{ height: 220 }}>
@@ -613,11 +679,11 @@ const Diagnostics = ({ role = 'admin' /* 'doctor', 'technician', 'admin' */ }) =
               <DownloadCloud className="w-4 h-4" /> Export All
             </button>
             <div className="relative">
-              <button className="px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded">More</button>
+              <button className="text-white px-3 py-2 bg-blue-600 dark:bg-gray-700 rounded">More</button>
               <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded shadow p-2">
                 <button onClick={handleExportFilteredCSV} className="w-full text-left p-2 rounded hover:bg-gray-50">Export Filtered CSV</button>
                 <button onClick={handleExportXLSX} className="w-full text-left p-2 rounded hover:bg-gray-50">Export XLSX</button>
-                <button onClick={handleExportPDF} className="w-full text-left p-2 rounded hover:bg-gray-50">Export PDF</button>
+                <button onClick={handleExportPDF} className="text-black w-full text-left p-2 rounded hover:bg-blue-50">Export PDF</button>
               </div>
             </div>
           </div>
@@ -634,7 +700,7 @@ const Diagnostics = ({ role = 'admin' /* 'doctor', 'technician', 'admin' */ }) =
                 <div className="flex justify-between items-start gap-2">
                   <div>
                     <div className="flex items-center gap-2">
-                      <h3 className="text-lg font-semibold">{test.name}</h3>
+                      <h3 className="text-black text-lg font-semibold">{test.name}</h3>
                       <Badge className={statusColors[test.status]}>{test.status}</Badge>
                     </div>
                     <div className="text-sm text-gray-500 dark:text-gray-400">Patient: <strong>{test.patient}</strong></div>
@@ -644,10 +710,10 @@ const Diagnostics = ({ role = 'admin' /* 'doctor', 'technician', 'admin' */ }) =
                   <div className="flex flex-col items-end gap-2">
                     <div className="text-xs text-gray-400">{test.assignedTo}</div>
                     <div className="flex gap-2">
-                      <button onClick={() => downloadSingleReport(test)} title="Download report" className="p-2 bg-gray-100 dark:bg-gray-700 rounded">
+                      <button onClick={() => downloadSingleReport(test)} title="Download report" className="text-black p-2 bg-gray-600 dark:bg-gray-700 rounded">
                         <FileDownIcon className="w-4 h-4" />
                       </button>
-                      <button onClick={() => { setExpandedId(id => id === test.id ? null : test.id); }} title="Expand" className="p-2 bg-gray-100 dark:bg-gray-700 rounded">
+                      <button onClick={() => { setExpandedId(id => id === test.id ? null : test.id); }} title="Expand" className="text-black p-2 bg-gray-600 dark:bg-gray-700 rounded">
                         <ChevronDown className={clsx('w-4 h-4 transition-transform', expandedId === test.id && 'rotate-180')} />
                       </button>
                     </div>
@@ -727,7 +793,7 @@ const Diagnostics = ({ role = 'admin' /* 'doctor', 'technician', 'admin' */ }) =
         <div className="flex items-center gap-3">
           <button onClick={handleExportFilteredCSV} className="px-4 py-2 bg-green-600 text-white rounded flex items-center gap-2"><FileDownIcon className="w-4 h-4" /> Export Filtered CSV</button>
           <button onClick={handleExportXLSX} className="px-4 py-2 bg-indigo-600 text-white rounded">Export XLSX</button>
-          <button onClick={handleExportPDF} className="px-4 py-2 bg-gray-100 dark:bg-gray-700 rounded">Export PDF</button>
+          <button onClick={handleExportPDF} className="px-4 py-2 bg-gray-500 dark:bg-gray-700 rounded">Export PDF</button>
         </div>
 
         <div className="flex items-center gap-3">

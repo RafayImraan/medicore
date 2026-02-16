@@ -17,12 +17,13 @@ const activityLogSchema = new mongoose.Schema({
       'user_create', 'user_update', 'user_delete',
       'report_generate', 'report_view',
       'calendar_create', 'calendar_update', 'calendar_delete',
-      'system_error', 'security_alert'
+      'system_error', 'security_alert',
+      'ui_click', 'navigation', 'search', 'cta_click', 'page_view'
     ]
   },
   resource: {
     type: String,
-    enum: ['user', 'appointment', 'billing', 'telehealth', 'feedback', 'calendar', 'report', 'system']
+    enum: ['user', 'appointment', 'billing', 'telehealth', 'feedback', 'calendar', 'report', 'system', 'ui', 'navigation', 'search', 'content']
   },
   resourceId: {
     type: mongoose.Schema.Types.ObjectId

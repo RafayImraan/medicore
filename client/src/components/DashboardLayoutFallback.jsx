@@ -82,7 +82,7 @@ const DashboardLayoutFallback = ({
         <div className="flex items-center gap-4">
           {/* Widget Visibility Controls */}
           <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-600">Show:</span>
+            <span className="text-sm lux-muted">Show:</span>
             {Object.entries(widgetVisibility).map(([widgetId, isVisible]) => (
               <button
                 key={widgetId}
@@ -90,7 +90,7 @@ const DashboardLayoutFallback = ({
                 className={`flex items-center gap-1 px-3 py-1 rounded-lg transition text-sm ${
                   isVisible
                     ? 'bg-blue-100 text-blue-700'
-                    : 'bg-gray-100 text-gray-500'
+                    : 'lux-surface-muted lux-muted'
                 }`}
                 title={isVisible ? 'Hide widget' : 'Show widget'}
               >
@@ -113,7 +113,7 @@ const DashboardLayoutFallback = ({
             <FaCog /> Demo Data
           </span>
         )}
-        <span className="text-gray-500">Last updated: {lastUpdated.toLocaleTimeString()}</span>
+        <span className="lux-muted">Last updated: {lastUpdated.toLocaleTimeString()}</span>
         <button
           onClick={refreshStats}
           className="ml-4 px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition flex items-center gap-1"
@@ -144,7 +144,7 @@ const DashboardLayoutFallback = ({
       {/* Grid Layout Fallback */}
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
         {widgetVisibility.stats && (
-          <div className="bg-white rounded-2xl shadow-md overflow-hidden col-span-1 lg:col-span-2 xl:col-span-3">
+          <div className="lux-surface rounded-2xl shadow-md overflow-hidden col-span-1 lg:col-span-2 xl:col-span-3">
             <div className="p-4">
               <h3 className="text-lg font-semibold mb-4">Statistics Overview</h3>
               {renderWidget('stats')}
@@ -153,7 +153,7 @@ const DashboardLayoutFallback = ({
         )}
 
         {widgetVisibility.revenue && (
-          <div className="bg-white rounded-2xl shadow-md overflow-hidden">
+          <div className="lux-surface rounded-2xl shadow-md overflow-hidden">
             <div className="p-4">
               <h3 className="text-lg font-semibold mb-4">Revenue Analytics</h3>
               {renderWidget('revenue')}
@@ -162,7 +162,7 @@ const DashboardLayoutFallback = ({
         )}
 
         {widgetVisibility.chart && (
-          <div className="bg-white rounded-2xl shadow-md overflow-hidden">
+          <div className="lux-surface rounded-2xl shadow-md overflow-hidden">
             <div className="p-4">
               <h3 className="text-lg font-semibold mb-4">Appointments Chart</h3>
               {renderWidget('chart')}
@@ -171,7 +171,7 @@ const DashboardLayoutFallback = ({
         )}
 
         {widgetVisibility.notifications && (
-          <div className="bg-white rounded-2xl shadow-md overflow-hidden">
+          <div className="lux-surface rounded-2xl shadow-md overflow-hidden">
             <div className="p-4">
               <h3 className="text-lg font-semibold mb-4">Notifications</h3>
               {renderWidget('notifications')}
@@ -180,7 +180,7 @@ const DashboardLayoutFallback = ({
         )}
 
         {widgetVisibility.quicklinks && (
-          <div className="bg-white rounded-2xl shadow-md overflow-hidden">
+          <div className="lux-surface rounded-2xl shadow-md overflow-hidden">
             <div className="p-4">
               <h3 className="text-lg font-semibold mb-4">Quick Links</h3>
               {renderWidget('quicklinks')}
@@ -193,8 +193,8 @@ const DashboardLayoutFallback = ({
       {Object.values(widgetVisibility).every(visible => !visible) && (
         <div className="text-center py-12">
           <FaEyeSlash className="text-6xl text-gray-300 mx-auto mb-4" />
-          <h3 className="text-xl font-semibold text-gray-500 mb-2">No widgets visible</h3>
-          <p className="text-gray-400">Enable widgets using the controls above to see your dashboard content.</p>
+          <h3 className="text-xl font-semibold lux-muted mb-2">No widgets visible</h3>
+          <p className="lux-muted">Enable widgets using the controls above to see your dashboard content.</p>
         </div>
       )}
     </div>

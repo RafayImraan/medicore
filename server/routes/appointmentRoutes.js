@@ -95,6 +95,7 @@ const createAppointment = async (req, res) => {
       },
       appointmentDate: new Date(appointmentDate),
       appointmentTime,
+      slot: slotDate,
       type,
       reason,
       consultationFee: fee
@@ -150,6 +151,127 @@ router.get("/", async (req, res) => {
       message: "An internal server error occurred while retrieving appointments. Please try again later.",
       details: process.env.NODE_ENV === 'development' ? err.message : undefined
     });
+  }
+});
+
+// Appointment history with filters
+router.get("/history", async (req, res) => {
+  try {
+    const { status, search, patientEmail, page = 1, limit = 50 } = req.query;
+    const query = {};
+
+    if (status) {
+      query.status = status.toLowerCase();
+    }
+
+    if (patientEmail) {
+      query["patient.email"] = patientEmail;
+    }
+
+    if (search) {
+      const regex = new RegExp(search, "i");
+      query.$or = [
+        { "doctor.name": regex },
+        { "doctor.specialization": regex },
+        { type: regex },
+        { status: regex },
+        { "patient.name": regex }
+      ];
+    }
+
+    const pageNumber = Math.max(parseInt(page, 10) || 1, 1);
+    const limitNumber = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200);
+    const skip = (pageNumber - 1) * limitNumber;
+
+    const [appointments, total] = await Promise.all([
+      Appointment.find(query).sort({ appointmentDate: -1, appointmentTime: -1 }).skip(skip).limit(limitNumber),
+      Appointment.countDocuments(query)
+    ]);
+
+    const items = appointments.map((appt) => ({
+      id: appt._id,
+      doctor: appt.doctor?.name || "Unknown Doctor",
+      specialty: appt.doctor?.specialization || "General",
+      type: appt.type,
+      date: appt.appointmentDate ? appt.appointmentDate.toISOString().split("T")[0] : "",
+      time: appt.appointmentTime || "",
+      slot: appt.slot ? appt.slot.toISOString() : null,
+      fee: appt.consultationFee || 0,
+      status: appt.status ? appt.status.charAt(0).toUpperCase() + appt.status.slice(1) : "Pending"
+    }));
+
+    res.json({ items, total, page: pageNumber, limit: limitNumber });
+  } catch (err) {
+    console.error("Error fetching appointment history:", err);
+    res.status(500).json({ error: "Failed to fetch appointment history" });
+  }
+});
+
+// Appointment stats summary
+router.get("/stats", async (req, res) => {
+  try {
+    const { patientEmail } = req.query;
+    const query = {};
+    if (patientEmail) query["patient.email"] = patientEmail;
+
+    const appointments = await Appointment.find(query).select("status");
+    const totalAppointments = appointments.length;
+    const completedAppointments = appointments.filter(a => a.status === "completed").length;
+    const pendingAppointments = appointments.filter(a => a.status === "pending").length;
+    const cancelledAppointments = appointments.filter(a => a.status === "cancelled").length;
+    const confirmedAppointments = appointments.filter(a => a.status === "confirmed").length;
+
+    res.json({
+      totalAppointments,
+      completedAppointments,
+      pendingAppointments,
+      cancelledAppointments,
+      confirmedAppointments
+    });
+  } catch (err) {
+    console.error("Error fetching appointment stats:", err);
+    res.status(500).json({ error: "Failed to fetch appointment stats" });
+  }
+});
+
+// Appointment trends (last 6 months)
+router.get("/trends", async (req, res) => {
+  try {
+    const { patientEmail } = req.query;
+    const query = {};
+    if (patientEmail) query["patient.email"] = patientEmail;
+
+    const now = new Date();
+    const monthsBack = 6;
+    const start = new Date(now.getFullYear(), now.getMonth() - (monthsBack - 1), 1);
+    query.appointmentDate = { $gte: start };
+
+    const appointments = await Appointment.find(query).select("appointmentDate status");
+
+    const monthKey = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+    const monthLabel = (date) => date.toLocaleString("en-US", { month: "short" });
+
+    const buckets = new Map();
+    for (let i = 0; i < monthsBack; i += 1) {
+      const d = new Date(now.getFullYear(), now.getMonth() - (monthsBack - 1) + i, 1);
+      const key = monthKey(d);
+      buckets.set(key, { month: monthLabel(d), count: 0, completed: 0, cancelled: 0 });
+    }
+
+    appointments.forEach((appt) => {
+      if (!appt.appointmentDate) return;
+      const key = monthKey(appt.appointmentDate);
+      if (!buckets.has(key)) return;
+      const bucket = buckets.get(key);
+      bucket.count += 1;
+      if (appt.status === "completed") bucket.completed += 1;
+      if (appt.status === "cancelled") bucket.cancelled += 1;
+    });
+
+    res.json(Array.from(buckets.values()));
+  } catch (err) {
+    console.error("Error fetching appointment trends:", err);
+    res.status(500).json({ error: "Failed to fetch appointment trends" });
   }
 });
 
@@ -330,6 +452,66 @@ router.put("/:id/status", async (req, res) => {
       message: "An internal server error occurred while updating the appointment status. Please try again later.",
       details: process.env.NODE_ENV === 'development' ? err.message : undefined
     });
+  }
+});
+
+// Reschedule appointment
+router.put("/:id/reschedule", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { slot } = req.body;
+
+    if (!id || !/^[0-9a-fA-F]{24}$/.test(id)) {
+      return res.status(400).json({
+        error: "Invalid appointment ID",
+        message: "Please provide a valid appointment ID"
+      });
+    }
+
+    if (!slot) {
+      return res.status(400).json({
+        error: "Missing slot",
+        message: "Please provide a new slot for rescheduling"
+      });
+    }
+
+    const slotDate = new Date(slot);
+    if (isNaN(slotDate.getTime())) {
+      return res.status(400).json({
+        error: "Invalid slot",
+        message: "Please provide a valid datetime slot"
+      });
+    }
+
+    if (slotDate <= new Date()) {
+      return res.status(400).json({
+        error: "Invalid appointment time",
+        message: "Appointment time must be in the future"
+      });
+    }
+
+    const appointmentDate = slotDate.toISOString().split("T")[0];
+    const appointmentTime = slotDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    const updated = await Appointment.findByIdAndUpdate(
+      id,
+      {
+        appointmentDate: new Date(appointmentDate),
+        appointmentTime,
+        slot: slotDate,
+        updatedAt: Date.now()
+      },
+      { new: true }
+    );
+
+    if (!updated) {
+      return res.status(404).json({ error: "Appointment not found" });
+    }
+
+    res.json(updated);
+  } catch (err) {
+    console.error("Error rescheduling appointment:", err);
+    res.status(500).json({ error: "Failed to reschedule appointment" });
   }
 });
 

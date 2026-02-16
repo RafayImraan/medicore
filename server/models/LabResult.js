@@ -10,6 +10,45 @@ const labResultSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  patientName: {
+    type: String
+  },
+  doctorName: {
+    type: String
+  },
+  technicianName: {
+    type: String
+  },
+  severity: {
+    type: String,
+    enum: ['Low', 'Moderate', 'High']
+  },
+  recurring: {
+    type: Boolean,
+    default: false
+  },
+  flaggedForFollowUp: {
+    type: Boolean,
+    default: false
+  },
+  referenceRange: {
+    type: String
+  },
+  anatomyRegion: {
+    type: String
+  },
+  notes: {
+    type: String
+  },
+  version: {
+    type: String
+  },
+  department: {
+    type: String
+  },
+  language: {
+    type: String
+  },
   date: {
     type: Date,
     required: true
@@ -24,6 +63,10 @@ const labResultSchema = new mongoose.Schema({
     default: 'Pending'
   },
   createdAt: {
+    type: Date,
+    default: Date.now
+  },
+  updatedAt: {
     type: Date,
     default: Date.now
   }

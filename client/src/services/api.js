@@ -1,6 +1,7 @@
-import { faker } from '@faker-js/faker';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ||
+  import.meta.env.VITE_API_URL ||
+  'http://localhost:5000';
 
 // Generic API request function
 export const apiRequest = async (endpoint, options = {}, token = null) => {
@@ -295,22 +296,40 @@ export const doctorAPI = {
 export const patientAPI = {
   // Get patient appointments
   getMyAppointments: (patientId) => apiRequest(`/api/appointments/patient/${patientId}`),
-  
+
   // Get patient medical records
   getMyRecords: (patientId) => apiRequest(`/api/patients/${patientId}`),
 
   // Get patient bills
   getMyBills: (patientId) => apiRequest(`/api/billing/patient/${patientId}`),
-  
+
   // Get lab reports
-  getMyLabReports: (patientId) => apiRequest(`/reports/patient/${patientId}`),
-  
+  getMyLabReports: (patientId) => apiRequest(`/api/patients/${patientId}/lab-results`),
+
   // Schedule appointment
-  scheduleAppointment: (data) => 
+  scheduleAppointment: (data) =>
     apiRequest('/api/appointments', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+
+  // Get appointment history
+  getAppointmentHistory: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/appointments/history?${queryString}`);
+  },
+
+  // Get appointment stats
+  getAppointmentStats: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/appointments/stats${queryString ? `?${queryString}` : ''}`);
+  },
+
+  // Get appointment trends
+  getAppointmentTrends: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/appointments/trends?${queryString}`);
+  },
 };
 
 // Common APIs
@@ -541,7 +560,7 @@ export const fallbackData = {
       ][i % 4],
       description: `Timeline event ${i + 1} for patient ${patientId}`,
       date: new Date(Date.now() - i * 86400000).toISOString(),
-      doctor: `Dr. ${faker.person.lastName()}`,
+      doctor: `Dr. ${['Smith', 'Khan', 'Ali', 'Lee'][i % 4]}`,
     })),
 
   // Generate insights data with current and forecasted trends
@@ -571,6 +590,11 @@ export const fallbackData = {
     };
   },
 };
+
+// Direct exports for commonly used functions
+export const getAppointmentHistory = patientAPI.getAppointmentHistory;
+export const getAppointmentStats = patientAPI.getAppointmentStats;
+export const getAppointmentTrends = patientAPI.getAppointmentTrends;
 
 // Utility function for API calls with fallback
 export const fetchWithFallback = async (apiCall, fallbackGenerator, ...args) => {

@@ -1,14 +1,14 @@
 // HomeHealthcarePro.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { faker } from "@faker-js/faker";
+import { motion, AnimatePresence, useAnimation } from "framer-motion";
 import tourVideo from "../components/tour video.mp4";
+import { apiRequest } from "../services/api";
 import {
   Stethoscope,
   HeartPulse,
   Users,
   Phone,
-  Calendar as CalendarIcon,
+  Calendar as CalendarIcon, // Required: Code uses <CalendarIcon />
   Sun,
   Moon,
   ArrowUp,
@@ -24,146 +24,31 @@ import {
   ChevronUp,
   MessageSquare,
   MapPin,
-  PlusCircle,
   Ambulance,
   Globe,
-  Link as LinkIcon,
+  Link as LinkIcon, // Required: Code uses <LinkIcon />
   X,
-  Paperclip,
-  Map as MapIcon,
-  Wifi,
+  Video,
+  Brain,
+  BarChart3,
+  PieChart,
+  Activity,
+  UserCheck
 } from "lucide-react";
 
 // -----------------------------------------------------------
-// Helper data & utilities (preserves original fake content)
+// Helper data & utilities
 // -----------------------------------------------------------
 
-const makeTeam = (n = 6) =>
-  Array.from({ length: n }, (_, i) => ({
-    id: i + 1,
-    name: faker.person.fullName(),
-    role: faker.helpers.arrayElement([
-      "Registered Nurse",
-      "Physical Therapist",
-      "Occupational Therapist",
-      "Speech Therapist",
-      "Home Health Aide",
-      "Care Coordinator",
-    ]),
-    avatar: faker.image.avatar(),
-    bio: faker.lorem.sentence(),
-    years: faker.number.int({ min: 2, max: 18 }),
-    specialty: faker.helpers.arrayElement([
-      "Elderly Care",
-      "Post-surgical Rehab",
-      "Chronic Disease Mgmt",
-      "Palliative Support",
-      "Pediatrics",
-    ]),
-  }));
-
-const servicesList = [
-  {
-    icon: <Stethoscope className="w-8 h-8" />,
-    title: "Skilled Nursing Care",
-    desc: "Professional nursing services delivered at home.",
-    features: ["Wound care", "Medication admin", "Vitals monitoring"],
-  },
-  {
-    icon: <HeartPulse className="w-8 h-8" />,
-    title: "Therapies",
-    desc: "Physical, Occupational, and Speech therapy programs.",
-    features: ["Mobility training", "ADL support", "Speech rehab"],
-  },
-  {
-    icon: <Users className="w-8 h-8" />,
-    title: "Personal Care",
-    desc: "Daily assistance and companionship.",
-    features: ["Bathing & grooming", "Meal prep", "Light housekeeping"],
-  },
-  {
-    icon: <ShieldCheck className="w-8 h-8" />,
-    title: "Chronic Disease Mgmt",
-    desc: "Evidence-based care plans for long-term conditions.",
-    features: ["Diabetes care", "COPD support", "Cardiac rehab"],
-  },
-  {
-    icon: <Ambulance className="w-8 h-8" />,
-    title: "Post-Surgical Care",
-    desc: "Safe recovery at home with close monitoring.",
-    features: ["Pain mgmt", "Dressing changes", "Mobility progression"],
-  },
-  {
-    icon: <Hospital className="w-8 h-8" />,
-    title: "24/7 Support",
-    desc: "On-call triage and emergency response guidance.",
-    features: ["Hotline", "Care escalation", "Tele-support"],
-  },
-];
-
-const packages = [
-  {
-    name: "Basic",
-    price: 49,
-    perks: ["Weekly nurse check-in", "Vitals tracking", "Care hotline"],
-    cta: "Choose Basic",
-  },
-  {
-    name: "Standard",
-    price: 99,
-    highlight: true,
-    perks: ["2 nurse visits / week", "Personalized care plan", "Therapy guidance"],
-    cta: "Choose Standard",
-  },
-  {
-    name: "Premium",
-    price: 179,
-    perks: ["Daily nurse tele-check", "3 visits / week", "24/7 support & escalation"],
-    cta: "Choose Premium",
-  },
-];
-
-const baseCertifications = [
-  "Joint Commission Accredited",
-  "Certified Home Health Agency",
-  "Licensed & Insured Professionals",
-  "HIPAA Compliance & Patient Safety",
-];
-
-const insurancePartners = Array.from({ length: 8 }, (_, i) => ({
-  id: i + 1,
-  name: faker.company.name(),
-  // small placeholder logos (can replace with real logos)
-  logo: `https://picsum.photos/seed/ins-${i + 1}/80/50`,
-}));
-
-const blogPosts = Array.from({ length: 6 }, (_, i) => ({
-  id: faker.string.uuid(),
-  title: faker.lorem.words({ min: 4, max: 7 }),
-  excerpt: faker.lorem.sentence(),
-  slug: `/${faker.lorem.slug()}`,
-  image: `https://picsum.photos/seed/blog-${i}/600/400`,
-}));
-
-const awards = Array.from({ length: 4 }, (_, i) => ({
-  year: faker.number.int({ min: 2019, max: 2025 }),
-  title: faker.helpers.arrayElement(["Top Home Care Provider", "Patient Safety Excellence", "Best Community Care", "Innovation in Telehealth"]),
-  org: faker.company.name(),
-}));
-
-const press = Array.from({ length: 4 }, (_, i) => ({
-  outlet: faker.company.name(),
-  headline: faker.lorem.sentence(),
-  link: "#",
-}));
-
-const successStories = Array.from({ length: 4 }, (_, i) => ({
-  id: i,
-  patient: faker.person.firstName(),
-  photo: `https://picsum.photos/seed/patient-${i}/300/300`,
-  story: faker.lorem.paragraph(),
-  outcome: faker.helpers.arrayElement(["Regained mobility", "Reduced rehospitalization", "Improved quality of life", "Pain reduction"]),
-}));
+const DEFAULT_SERVICES = [];
+const DEFAULT_PACKAGES = [];
+const DEFAULT_CERTIFICATIONS = [];
+const DEFAULT_PARTNERS = [];
+const DEFAULT_BLOGPOSTS = [];
+const DEFAULT_AWARDS = [];
+const DEFAULT_PRESS = [];
+const DEFAULT_STORIES = [];
+const DEFAULT_TEAM = [];
 
 const faqs = [
   {
@@ -213,6 +98,58 @@ export default function HomeHealthcarePro() {
     } catch {}
   }, [dark]);
 
+  const [content, setContent] = useState({
+    team: DEFAULT_TEAM,
+    services: DEFAULT_SERVICES,
+    packages: DEFAULT_PACKAGES,
+    certifications: DEFAULT_CERTIFICATIONS,
+    partners: DEFAULT_PARTNERS,
+    blogPosts: DEFAULT_BLOGPOSTS,
+    awards: DEFAULT_AWARDS,
+    press: DEFAULT_PRESS,
+    stories: DEFAULT_STORIES
+  });
+
+  useEffect(() => {
+    let alive = true;
+    const loadContent = async () => {
+      try {
+        const data = await apiRequest('/api/public/home-healthcare');
+        if (!alive) return;
+        setContent({
+          team: Array.isArray(data.team) ? data.team : [],
+          services: Array.isArray(data.services)
+            ? data.services.map((s) => ({ ...s, desc: s.description || s.desc || "" }))
+            : [],
+          packages: Array.isArray(data.packages) ? data.packages : [],
+          certifications: Array.isArray(data.certifications) ? data.certifications.map((c) => c.title || c) : [],
+          partners: Array.isArray(data.partners) ? data.partners : [],
+          blogPosts: Array.isArray(data.blogPosts) ? data.blogPosts : [],
+          awards: Array.isArray(data.awards)
+            ? data.awards.map((a) => ({ ...a, org: a.organization || a.org || "" }))
+            : [],
+          press: Array.isArray(data.press) ? data.press : [],
+          stories: Array.isArray(data.stories) ? data.stories : []
+        });
+      } catch (err) {
+        console.error('Failed to load home healthcare content:', err);
+      }
+    };
+
+    loadContent();
+    return () => { alive = false; };
+  }, []);
+
+  const servicesList = content.services;
+  const packages = content.packages;
+  const certifications = content.certifications;
+  const insurancePartners = content.partners;
+  const blogPosts = content.blogPosts;
+  const awards = content.awards;
+  const press = content.press;
+  const successStories = content.stories;
+  const team = content.team;
+
   // top button
   const [showTop, setShowTop] = useState(false);
 
@@ -239,20 +176,55 @@ export default function HomeHealthcarePro() {
   const [carouselIndex, setCarouselIndex] = useState(0);
   const testimonials = useMemo(
     () =>
-      Array.from({ length: 6 }, () => ({
-        name: faker.person.fullName(),
-        text: faker.lorem.sentences({ min: 1, max: 2 }),
-        avatar: faker.image.avatar(),
-        rating: faker.number.int({ min: 4, max: 5 }),
-      })),
+      [
+        {
+          name: "Dr. Sarah Johnson",
+          text: "As a leading cardiologist, I've seen firsthand how Medicore's premium home healthcare transforms patient outcomes. Their enterprise-level care is unparalleled.",
+          avatar: "https://images.unsplash.com/photo-1544723795-3fb6469f5b39?w=200&h=200&fit=crop",
+          rating: 5,
+          title: "Chief of Cardiology, Metropolitan Hospital"
+        },
+        {
+          name: "Michael Chen",
+          text: "The virtual consultation feature and AI-powered symptom checker have revolutionized our family's healthcare experience. Truly enterprise-grade service.",
+          avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop",
+          rating: 5,
+          title: "CEO, Chen Enterprises"
+        },
+        {
+          name: "Dr. Emily Rodriguez",
+          text: "Medicore's advanced analytics and patient portal provide the insights we need for optimal care management. A game-changer for healthcare delivery.",
+          avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop",
+          rating: 5,
+          title: "Director of Patient Care, Elite Medical Group"
+        },
+        {
+          name: "Robert Williams",
+          text: "The luxury care packages and 24/7 support have given my mother peace of mind. Exceptional enterprise healthcare at home.",
+          avatar: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=200&h=200&fit=crop",
+          rating: 5,
+          title: "President, Williams Foundation"
+        },
+        {
+          name: "Dr. Lisa Park",
+          text: "Their partnerships with major healthcare organizations ensure seamless, high-quality care. The telemedicine features are cutting-edge.",
+          avatar: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=200&h=200&fit=crop",
+          rating: 5,
+          title: "VP of Medical Affairs, Global Health Network"
+        },
+        {
+          name: "David Thompson",
+          text: "From the premium symptom checker to the enterprise analytics dashboard, Medicore delivers healthcare excellence that exceeds expectations.",
+          avatar: "https://images.unsplash.com/photo-1527980965255-d3b416303d12?w=200&h=200&fit=crop",
+          rating: 5,
+          title: "Chairman, Thompson Healthcare Group"
+        },
+      ],
     []
   );
 
   // selected package
   const [selectedPackage, setSelectedPackage] = useState(null);
-
-  // certifications (simulate fetch)
-  const [certifications, setCertifications] = useState(baseCertifications);
 
   // counters
   const [counts, setCounts] = useState({ patients: 0, caregivers: 0, years: 0, coverage: 0 });
@@ -294,8 +266,19 @@ export default function HomeHealthcarePro() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  // Parallax effect for hero
+  const [heroOffset, setHeroOffset] = useState(0);
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollY = window.scrollY;
+      setHeroOffset(scrollY * 0.5); // Adjust multiplier for parallax speed
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
   // Booking form
-  const [form, setForm] = useState({ name: "", phone: "", date: "", service: servicesList[0].title });
+  const [form, setForm] = useState({ name: "", phone: "", date: "", service: servicesList[0]?.title || "" });
   const [formMsg, setFormMsg] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -309,8 +292,8 @@ export default function HomeHealthcarePro() {
     // simulate
     await new Promise((r) => setTimeout(r, 800));
     setSubmitting(false);
-    setFormMsg("✅ Appointment request submitted (demo). We will contact you shortly.");
-    setForm({ name: "", phone: "", date: "", service: servicesList[0].title });
+    setFormMsg("Appointment request submitted. We will contact you shortly.");
+    setForm({ name: "", phone: "", date: "", service: servicesList[0]?.title || "" });
   };
 
   // Symptom checker
@@ -355,21 +338,207 @@ export default function HomeHealthcarePro() {
   // Map center (hardcoded for Karachi as user is there)
   const coverageMapSrc = `https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d241317.1161775941!2d66.84648375895886!3d24.86096617640753!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3eb33f9f8ef2b653%3A0x5d8893c3793d5a6a!2sKarachi%2C%20Pakistan!5e0!3m2!1sen!2s!4v1696158000000!5m2!1sen!2s`;
 
-  // Team
-  const team = useMemo(() => makeTeam(9), []);
-
   // Blog load more
   const [showAllBlogs, setShowAllBlogs] = useState(false);
 
   // Accessibility: focus trap for modals is omitted for brevity but worth adding in production
+
+  // New premium enhancements
+  const [loading, setLoading] = useState(true);
+  const [particles, setParticles] = useState([]);
+  const [liveData, setLiveData] = useState({
+    activePatients: 0,
+    availableNurses: 0,
+    responseTime: 0,
+    satisfaction: 0
+  });
+  const [card3D, setCard3D] = useState({ x: 0, y: 0, rotateX: 0, rotateY: 0 });
+  const [floatingElements, setFloatingElements] = useState([]);
+
+  // Loading animation
+  useEffect(() => {
+    const timer = setTimeout(() => setLoading(false), 2000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Particle background
+  useEffect(() => {
+    const generateParticles = () => {
+      const newParticles = Array.from({ length: 50 }, (_, i) => ({
+        id: i,
+        x: Math.random() * window.innerWidth,
+        y: Math.random() * window.innerHeight,
+        size: Math.random() * 3 + 1,
+        speedX: (Math.random() - 0.5) * 0.5,
+        speedY: (Math.random() - 0.5) * 0.5,
+        opacity: Math.random() * 0.5 + 0.1,
+      }));
+      setParticles(newParticles);
+    };
+    generateParticles();
+
+    const animateParticles = () => {
+      setParticles(prev => prev.map(p => ({
+        ...p,
+        x: (p.x + p.speedX + window.innerWidth) % window.innerWidth,
+        y: (p.y + p.speedY + window.innerHeight) % window.innerHeight,
+      })));
+    };
+
+    const interval = setInterval(animateParticles, 50);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Dynamic fake data updates
+  useEffect(() => {
+    const updateLiveData = () => {
+      setLiveData({
+        activePatients: Math.floor(Math.random() * 50) + 1200,
+        availableNurses: Math.floor(Math.random() * 10) + 40,
+        responseTime: Math.floor(Math.random() * 5) + 2,
+        satisfaction: Math.floor(Math.random() * 5) + 95,
+      });
+    };
+
+    const interval = setInterval(updateLiveData, 30000); // Update every 30 seconds
+    updateLiveData(); // Initial update
+    return () => clearInterval(interval);
+  }, []);
+
+  // Floating luxury elements
+  useEffect(() => {
+    const elements = Array.from({ length: 8 }, (_, i) => ({
+      id: i,
+      icon: [ShieldCheck, Award, Star, HeartPulse, Users, Hospital, Globe, CheckCircle2][i],
+      x: Math.random() * 100,
+      y: Math.random() * 100,
+      size: Math.random() * 20 + 10,
+      speed: Math.random() * 0.5 + 0.1,
+    }));
+    setFloatingElements(elements);
+
+    const animateElements = () => {
+      setFloatingElements(prev => prev.map(el => ({
+        ...el,
+        y: (el.y - el.speed) % 100,
+      })));
+    };
+
+    const interval = setInterval(animateElements, 100);
+    return () => clearInterval(interval);
+  }, []);
+
+  // 3D card effect handler
+  const handleMouseMove = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
+    const rotateX = (y - centerY) / 10;
+    const rotateY = (centerX - x) / 10;
+
+    setCard3D({ x, y, rotateX, rotateY });
+  };
+
+  const handleMouseLeave = () => {
+    setCard3D({ x: 0, y: 0, rotateX: 0, rotateY: 0 });
+  };
+
+  // Premium loading screen
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-emerald-950/30 to-slate-950 flex items-center justify-center">
+        <motion.div
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ duration: 0.8, ease: "easeOut" }}
+          className="text-center"
+        >
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+            className="w-16 h-16 border-4 border-yellow-400 border-t-transparent rounded-full mx-auto mb-4"
+          />
+          <motion.h1
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.3 }}
+            className="text-2xl font-bold text-white mb-2"
+          >
+            Medicore HomeCare
+          </motion.h1>
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.6 }}
+            className="text-white/70"
+          >
+            Loading premium healthcare experience...
+          </motion.p>
+        </motion.div>
+      </div>
+    );
+  }
 
   // -----------------------------------------------------------
   // Rendering — large UI with many sections
   // -----------------------------------------------------------
 
   return (
-    <div className={dark ? "min-h-screen dark bg-gray-900 text-gray-100" : "min-h-screen bg-gray-50 text-gray-800"}>
-      <div className="relative">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-emerald-950/30 to-slate-950 text-white relative overflow-hidden">
+      {/* Luxury background elements */}
+      <div className="absolute inset-0 bg-gradient-to-br from-yellow-500/5 via-transparent to-gray-500/5"></div>
+      <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_30%_20%,rgba(255,215,0,0.1),transparent_50%)]"></div>
+      <div className="absolute bottom-0 right-0 w-full h-full bg-[radial-gradient(circle_at_70%_80%,rgba(192,192,192,0.1),transparent_50%)]"></div>
+
+      {/* Particle Background */}
+      <div className="absolute inset-0 pointer-events-none">
+        {particles.map((particle) => (
+          <div
+            key={particle.id}
+            className="absolute rounded-full bg-white/20"
+            style={{
+              left: `${particle.x}px`,
+              top: `${particle.y}px`,
+              width: `${particle.size}px`,
+              height: `${particle.size}px`,
+              opacity: particle.opacity,
+            }}
+          />
+        ))}
+      </div>
+
+      {/* Floating Luxury Elements */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        {floatingElements.map((el) => {
+          const IconComponent = el.icon;
+          return (
+            <motion.div
+              key={el.id}
+              className="absolute text-yellow-400/30"
+              style={{
+                left: `${el.x}%`,
+                top: `${el.y}%`,
+                fontSize: `${el.size}px`,
+              }}
+              animate={{
+                y: [0, -20, 0],
+                rotate: [0, 5, -5, 0],
+              }}
+              transition={{
+                duration: 4 + el.speed,
+                repeat: Infinity,
+                ease: "easeInOut",
+              }}
+            >
+              <IconComponent />
+            </motion.div>
+          );
+        })}
+      </div>
+
+      <div className="relative z-10">
         {/* Emergency banner */}
         <div className="bg-red-600 text-white text-center py-2 text-sm flex items-center justify-center gap-2">
           <Ambulance className="w-4 h-4" />
@@ -426,40 +595,43 @@ export default function HomeHealthcarePro() {
         {/* Hero with video background */}
         <section id="hero" className="relative overflow-hidden">
           <div className="absolute inset-0">
-            <video className="w-full h-full object-cover" src={tourVideo} autoPlay muted loop playsInline />
-            <div className="absolute inset-0 bg-gradient-to-br from-green-900/70 to-green-700/40 mix-blend-multiply" />
+            <video className="w-full h-full object-cover" style={{ transform: `translateY(${heroOffset}px)` }} src={tourVideo} autoPlay muted loop playsInline />
+            <div className="absolute inset-0 bg-gradient-to-br from-emerald-900/80 via-slate-900/60 to-slate-900/80 mix-blend-multiply" />
+            {/* Premium overlays */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+            <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_50%_50%,rgba(255,215,0,0.05),transparent_70%)]" />
           </div>
-          <div className="relative py-24">
+          <div className="relative py-32">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-              <motion.h1 initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="text-4xl md:text-5xl font-extrabold text-white mb-4">
-                Compassionate Care. At Your Home.
+              <motion.h1 initial={{ y: -30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 1, ease: "easeOut" }} className="text-5xl md:text-7xl font-serif font-bold text-white mb-6 drop-shadow-2xl tracking-wide leading-tight">
+                Luxury Home Healthcare Excellence
               </motion.h1>
-              <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }} className="text-lg md:text-xl text-white/90 mb-6">
+              <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3, duration: 0.8 }} className="text-xl md:text-2xl text-white/95 mb-8 font-light leading-relaxed">
                 Professional nurses & therapists delivering quality care—anytime you need it.
               </motion.p>
-              <motion.div className="flex items-center justify-center gap-3 flex-wrap" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}>
-                <button onClick={() => scrollTo("booking")} className="bg-white text-green-900 px-6 py-3 rounded-full font-semibold shadow hover:bg-gray-100 flex items-center gap-2">
-                  <CalendarIcon className="w-4 h-4" /> Book Appointment
+              <motion.div className="flex items-center justify-center gap-4 flex-wrap" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.6, duration: 0.6 }}>
+                <button onClick={() => scrollTo("booking")} className="bg-gradient-to-r from-yellow-400 to-yellow-600 text-slate-900 px-8 py-4 rounded-full font-bold shadow-2xl hover:shadow-3xl hover:scale-105 transition-all duration-300 flex items-center gap-2">
+                  <CalendarIcon className="w-5 h-5" /> Book Appointment
                 </button>
-                <button onClick={() => scrollTo("services")} className="bg-green-600/30 hover:bg-green-600/40 border border-white/30 px-6 py-3 rounded-full text-white flex items-center gap-2">
-                  <PlayCircle className="w-4 h-4" /> Explore Services
+                <button onClick={() => scrollTo("services")} className="bg-white/20 backdrop-blur-md hover:bg-white/30 border border-white/40 px-8 py-4 rounded-full text-white font-semibold shadow-xl hover:shadow-2xl transition-all duration-300 flex items-center gap-2">
+                  <PlayCircle className="w-5 h-5" /> Explore Services
                 </button>
               </motion.div>
 
-              <div className="mt-8 flex items-center justify-center gap-6 text-sm text-white/90">
-                <div className="flex items-center gap-2">
-                  <IconBadge><CheckCircle2 className="w-4 h-4" /></IconBadge>
+              <motion.div className="mt-12 flex items-center justify-center gap-8 text-sm text-white/90" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.9 }}>
+                <div className="flex items-center gap-3 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full">
+                  <IconBadge className="bg-yellow-400/20"><CheckCircle2 className="w-4 h-4 text-yellow-400" /></IconBadge>
                   <span>Trusted medical staff</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <IconBadge><ShieldCheck className="w-4 h-4" /></IconBadge>
+                <div className="flex items-center gap-3 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full">
+                  <IconBadge className="bg-yellow-400/20"><ShieldCheck className="w-4 h-4 text-yellow-400" /></IconBadge>
                   <span>Accredited & Insured</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <IconBadge><PlayCircle className="w-4 h-4" /></IconBadge>
+                <div className="flex items-center gap-3 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full">
+                  <IconBadge className="bg-yellow-400/20"><PlayCircle className="w-4 h-4 text-yellow-400" /></IconBadge>
                   <span>Virtual tour available</span>
                 </div>
-              </div>
+              </motion.div>
             </div>
           </div>
           {/* decorative wave */}
@@ -487,18 +659,105 @@ export default function HomeHealthcarePro() {
           ))}
         </section>
 
+        {/* Live Data Dashboard */}
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          <motion.h2 initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-3xl font-bold text-green-800 dark:text-green-300 text-center mb-10">Live Service Status</motion.h2>
+          <div className="grid md:grid-cols-4 gap-6">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              whileInView={{ opacity: 1, scale: 1 }}
+              viewport={{ once: true }}
+              className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 rounded-2xl p-6 shadow-lg border border-green-200 dark:border-green-700"
+              onMouseMove={handleMouseMove}
+              onMouseLeave={handleMouseLeave}
+              style={{
+                transform: `perspective(1000px) rotateX(${card3D.rotateX}deg) rotateY(${card3D.rotateY}deg)`,
+                transition: 'transform 0.1s ease-out',
+              }}
+            >
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
+                  <Users className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-green-700 dark:text-green-400">{liveData.activePatients}</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-300">Active Patients</div>
+                </div>
+              </div>
+              <div className="text-xs text-green-600 dark:text-green-400">Updated live</div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              whileInView={{ opacity: 1, scale: 1 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.1 }}
+              className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-2xl p-6 shadow-lg border border-blue-200 dark:border-blue-700"
+            >
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
+                  <ShieldCheck className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-blue-700 dark:text-blue-400">{liveData.availableNurses}</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-300">Available Nurses</div>
+                </div>
+              </div>
+              <div className="text-xs text-blue-600 dark:text-blue-400">On duty now</div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              whileInView={{ opacity: 1, scale: 1 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.2 }}
+              className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 rounded-2xl p-6 shadow-lg border border-purple-200 dark:border-purple-700"
+            >
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 bg-purple-500 rounded-full flex items-center justify-center">
+                  <Activity className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-purple-700 dark:text-purple-400">{liveData.responseTime}min</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-300">Avg Response Time</div>
+                </div>
+              </div>
+              <div className="text-xs text-purple-600 dark:text-purple-400">Last 24 hours</div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              whileInView={{ opacity: 1, scale: 1 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.3 }}
+              className="bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-900/20 dark:to-yellow-800/20 rounded-2xl p-6 shadow-lg border border-yellow-200 dark:border-yellow-700"
+            >
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 bg-yellow-500 rounded-full flex items-center justify-center">
+                  <Star className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-yellow-700 dark:text-yellow-400">{liveData.satisfaction}%</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-300">Patient Satisfaction</div>
+                </div>
+              </div>
+              <div className="text-xs text-yellow-600 dark:text-yellow-400">Based on reviews</div>
+            </motion.div>
+          </div>
+        </section>
+
         {/* Services */}
         <section id="services" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <h2 className="text-3xl font-bold text-green-800 dark:text-green-300 text-center mb-10">Our Services</h2>
+          <motion.h2 initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.8 }} className="text-3xl font-bold text-green-800 dark:text-green-300 text-center mb-10">Our Premium Services</motion.h2>
           <div className="grid md:grid-cols-3 gap-6">
             {servicesList.map((s, idx) => (
-              <motion.div key={idx} whileHover={{ y: -6 }} className="bg-white dark:bg-gray-900 rounded-2xl p-6 shadow border border-gray-100 dark:border-gray-800 transition">
-                <div className="text-green-700 dark:text-green-400 mb-4">{s.icon}</div>
-                <h3 className="text-xl font-semibold mb-1">{s.title}</h3>
-                <p className="text-gray-600 dark:text-gray-300 mb-4">{s.desc}</p>
-                <ul className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
+              <motion.div key={idx} initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.8, delay: idx * 0.1 }} whileHover={{ y: -6, scale: 1.02 }} className="backdrop-blur-lg bg-white/10 dark:bg-gray-900/10 rounded-2xl p-6 shadow-2xl border border-white/20 dark:border-gray-700/20 transition-all duration-300 hover:shadow-3xl hover:bg-white/20 dark:hover:bg-gray-900/20">
+                <div className="text-yellow-400 mb-4">{s.icon}</div>
+                <h3 className="text-xl font-semibold mb-1 text-white">{s.title}</h3>
+                <p className="text-gray-200 dark:text-gray-300 mb-4">{s.desc}</p>
+                <ul className="space-y-1 text-sm text-gray-200 dark:text-gray-400">
                   {s.features.map((f) => (
-                    <li key={f} className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-600" /> {f}</li>
+                    <li key={f} className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-yellow-400" /> {f}</li>
                   ))}
                 </ul>
               </motion.div>
@@ -507,11 +766,11 @@ export default function HomeHealthcarePro() {
         </section>
 
         {/* Packages / Pricing */}
-        <section id="packages" className="bg-green-50 dark:bg-green-950/20 py-16">
+        <section id="packages" className="bg-green-50 dark:bg-green-950/20 py-20">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <h2 className="text-3xl font-bold text-center text-green-800 dark:text-green-300 mb-10">Care Packages</h2>
-            <div className="grid md:grid-cols-3 gap-6">
-              {packages.map((p) => (
+          <h2 className="text-3xl font-bold text-center text-green-800 dark:text-green-300 mb-12">Care Packages</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+            {packages.map((p) => (
                 <motion.div key={p.name} whileHover={{ scale: 1.03 }} className={(p.highlight ? "ring-2 ring-green-600 " : "") + "bg-white dark:bg-gray-900 rounded-2xl p-6 shadow"}>
                   <div className="flex items-baseline justify-between mb-2">
                     <h3 className="text-xl font-semibold">{p.name}</h3>
@@ -539,7 +798,7 @@ export default function HomeHealthcarePro() {
                 </thead>
                 <tbody>
                   {["Nurse visits", "Tele-check", "24/7 hotline", "Therapy guidance"].map((feat) => (
-                    <tr key={feat} className="bg-white dark:bg-gray-900 shadow rounded">
+                    <tr key={feat} className="text-black bg-white dark:bg-gray-900 shadow rounded">
                       <td className="p-3 font-medium">{feat}</td>
                       {packages.map((p) => (
                         <td key={p.name} className="p-3">
@@ -554,10 +813,120 @@ export default function HomeHealthcarePro() {
           </div>
         </section>
 
+        {/* Virtual Consultation */}
+        <section id="virtual-consultation" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+          <div className="text-center mb-10">
+            <h2 className="text-3xl font-bold text-green-800 dark:text-green-300 mb-4">Virtual Consultation</h2>
+            <p className="text-lg text-gray-600 dark:text-gray-300">Connect with our expert healthcare professionals from the comfort of your home.</p>
+          </div>
+          <div className="grid md:grid-cols-2 gap-8">
+            <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow">
+              <h3 className="text-black text-xl font-semibold mb-4 flex items-center gap-2"><Video className="w-5 h-5 text-green-600" /> Schedule a Consultation</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">Book a secure video call with our licensed nurses and therapists.</p>
+              <button className="w-full bg-green-700 text-white py-2 rounded-xl hover:bg-green-800">Book Now</button>
+            </div>
+            <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow">
+              <h3 className="text-black text-xl font-semibold mb-4 flex items-center gap-2"><Brain className="w-5 h-5 text-green-600" /> AI Symptom Assessment</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">Get preliminary health insights powered by advanced AI technology.</p>
+              <button className="w-full bg-blue-700 text-white py-2 rounded-xl hover:bg-blue-800">Start Assessment</button>
+            </div>
+          </div>
+        </section>
+
+        {/* Patient Portal Preview */}
+        <section id="patient-portal" className="bg-green-50 dark:bg-green-950/20 py-16">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <h2 className="text-3xl font-bold text-center text-green-800 dark:text-green-300 mb-10">Patient Portal Preview</h2>
+            <div className="bg-white dark:bg-gray-900 rounded-2xl p-8 shadow">
+              <div className="grid md:grid-cols-3 gap-6">
+                <div className="text-center">
+                  <div className="w-16 h-16 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <UserCheck className="w-8 h-8 text-green-600" />
+                  </div>
+                  <h3 className="text-black font-semibold mb-2">Login Securely</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-300">Access your health records with HIPAA-compliant security.</p>
+                </div>
+                <div className="text-center">
+                  <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <BarChart3 className="w-8 h-8 text-blue-600" />
+                  </div>
+                  <h3 className="text-black font-semibold mb-2">View Analytics</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-300">Track your health metrics and progress over time.</p>
+                </div>
+                <div className="text-center">
+                  <div className="w-16 h-16 bg-purple-100 dark:bg-purple-900 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <MessageSquare className="w-8 h-8 text-purple-600" />
+                  </div>
+                  <h3 className="text-black font-semibold mb-2">Communicate</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-300">Message your care team and schedule appointments.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Advanced Analytics Dashboard Preview */}
+        <section id="analytics-dashboard" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+          <h2 className="text-3xl font-bold text-center text-green-800 dark:text-green-300 mb-10">Advanced Analytics Dashboard</h2>
+          <div className="grid md:grid-cols-3 gap-6">
+            <motion.div whileHover={{ scale: 1.05 }} className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow">
+              <BarChart3 className="w-8 h-8 text-green-600 mb-4" />
+              <h3 className="text-black font-semibold mb-2">Patient Outcomes</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-300">Track recovery progress and health improvements.</p>
+            </motion.div>
+            <motion.div whileHover={{ scale: 1.05 }} className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow">
+              <PieChart className="w-8 h-8 text-blue-600 mb-4" />
+              <h3 className="text-black font-semibold mb-2">Care Efficiency</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-300">Monitor care delivery metrics and response times.</p>
+            </motion.div>
+            <motion.div whileHover={{ scale: 1.05 }} className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow">
+              <Activity className="w-8 h-8 text-purple-600 mb-4" />
+              <h3 className="text-black font-semibold mb-2">Real-time Monitoring</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-300">Live vitals tracking and alert systems.</p>
+            </motion.div>
+          </div>
+        </section>
+
+        {/* Strategic Partnerships */}
+        <section className="bg-white dark:bg-gray-900 py-16">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <h2 className="text-3xl font-bold text-center text-green-800 dark:text-green-300 mb-10">Strategic Partnerships</h2>
+            <div className="flex gap-6 overflow-x-auto py-4">
+              <div className="flex-shrink-0 bg-gray-50 dark:bg-gray-950 p-4 rounded-xl flex items-center gap-4 min-w-[200px]">
+                <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
+                  <Hospital className="w-6 h-6 text-blue-600" />
+                </div>
+                <div>
+                  <h3 className="text-black font-semibold">Mayo Clinic</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-300">Research collaboration</p>
+                </div>
+              </div>
+              <div className="flex-shrink-0 bg-gray-50 dark:bg-gray-950 p-4 rounded-xl flex items-center gap-4 min-w-[200px]">
+                <div className="w-12 h-12 bg-red-100 dark:bg-red-900 rounded-full flex items-center justify-center">
+                  <Award className="w-6 h-6 text-red-600" />
+                </div>
+                <div>
+                  <h3 className="text-black font-semibold">Harvard Medical School</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-300">Education partnership</p>
+                </div>
+              </div>
+              <div className="flex-shrink-0 bg-gray-50 dark:bg-gray-950 p-4 rounded-xl flex items-center gap-4 min-w-[200px]">
+                <div className="w-12 h-12 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center">
+                  <ShieldCheck className="w-6 h-6 text-green-600" />
+                </div>
+                <div>
+                  <h3 className="text-black font-semibold">Cleveland Clinic</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-300">Quality assurance</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* Team */}
         <section id="team" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-          <h2 className="text-3xl font-bold text-green-800 dark:text-green-300 text-center mb-10">Meet Our Team</h2>
-          <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-6">
+          <h2 className="text-black text-3xl font-bold text-green-800 dark:text-green-300 text-center mb-10">Meet Our Team</h2>
+          <div className="text-black grid sm:grid-cols-2 md:grid-cols-3 gap-6">
             {team.map((m) => (
               <motion.div key={m.id} whileHover={{ y: -5 }} className="bg-white dark:bg-gray-900 rounded-2xl p-5 shadow border border-gray-100 dark:border-gray-800 text-center">
                 <img src={m.avatar} alt={m.name} className="w-16 h-16 rounded-full mx-auto mb-3" />
@@ -581,7 +950,7 @@ export default function HomeHealthcarePro() {
             </div>
             <div>
               <h3 className="text-xl font-semibold mb-3 flex items-center gap-2"><BookOpen className="w-5 h-5 text-green-600" /> Staff Training Timeline</h3>
-              <ul className="space-y-3 text-sm">
+              <ul className="text-black space-y-3 text-sm">
                 {Array.from({ length: 4 }).map((_, i) => (
                   <li key={i} className="bg-white dark:bg-gray-900 p-3 rounded-xl shadow flex items-center gap-3">
                     <CheckCircle2 className="w-4 h-4 text-green-600" />
@@ -593,41 +962,63 @@ export default function HomeHealthcarePro() {
           </div>
         </section>
 
-        {/* Testimonials with carousel controls */}
+        {/* Testimonials with enhanced carousel controls */}
         <section id="testimonials" className="bg-white dark:bg-gray-900 py-16">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center justify-between mb-8">
+            <motion.div className="flex items-center justify-between mb-8" initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
               <h2 className="text-3xl font-bold text-green-800 dark:text-green-300">What Patients Say</h2>
               <div className="flex items-center gap-2">
-                <button aria-label="prev" onClick={() => setCarouselIndex((i) => (i - 1 + testimonials.length) % testimonials.length)} className="p-2 rounded-md bg-gray-100 dark:bg-gray-800">
+                <motion.button aria-label="prev" onClick={() => setCarouselIndex((i) => (i - 1 + testimonials.length) % testimonials.length)} className="p-2 rounded-md bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors" whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
                   ◀
-                </button>
-                <button aria-label="next" onClick={() => setCarouselIndex((i) => (i + 1) % testimonials.length)} className="p-2 rounded-md bg-gray-100 dark:bg-gray-800">
+                </motion.button>
+                <motion.button aria-label="next" onClick={() => setCarouselIndex((i) => (i + 1) % testimonials.length)} className="p-2 rounded-md bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors" whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
                   ▶
-                </button>
+                </motion.button>
               </div>
-            </div>
+            </motion.div>
             <div className="relative">
               <div className="grid md:grid-cols-3 gap-6">
                 {testimonials.map((t, i) => (
-                  <motion.div key={i} initial={{ opacity: 0.6 }} animate={i === carouselIndex ? { opacity: 1, scale: 1.02 } : { opacity: 0.7, scale: 0.98 }} transition={{ duration: 0.4 }} className={"rounded-2xl p-5 shadow border bg-gray-50 dark:bg-gray-950 border-gray-100 dark:border-gray-800 " + (i === carouselIndex ? "ring-2 ring-green-600" : "")}>
-                    <div className="flex items-center gap-3 mb-2">
-                      <img src={t.avatar} alt={t.name} className="w-10 h-10 rounded-full" />
+                  <motion.div
+                    key={i}
+                    initial={{ opacity: 0, y: 30 }}
+                    animate={i === carouselIndex ? { opacity: 1, scale: 1.05, y: 0 } : { opacity: 0.6, scale: 0.95, y: 10 }}
+                    transition={{ duration: 0.6, ease: "easeOut" }}
+                    className={"rounded-2xl p-5 shadow border bg-gray-50 dark:bg-gray-950 border-gray-100 dark:border-gray-800 cursor-pointer " + (i === carouselIndex ? "ring-2 ring-green-600 shadow-2xl" : "")}
+                    onClick={() => setCarouselIndex(i)}
+                    whileHover={{ scale: i === carouselIndex ? 1.05 : 1.02, y: -5 }}
+                  >
+                    <motion.div className="flex items-center gap-3 mb-2" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
+                      <motion.img src={t.avatar} alt={t.name} className="w-10 h-10 rounded-full" whileHover={{ scale: 1.1 }} />
                       <div>
                         <div className="font-semibold text-sm">{t.name}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">{t.title}</div>
                         <div className="flex">
-                          {Array.from({ length: t.rating }).map((_, j) => (<Star key={j} className="w-4 h-4 text-yellow-500" />))}
+                          {Array.from({ length: t.rating }).map((_, j) => (
+                            <motion.div key={j} initial={{ opacity: 0, scale: 0 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.3 + j * 0.1 }}>
+                              <Star className="w-4 h-4 text-yellow-500" />
+                            </motion.div>
+                          ))}
                         </div>
                       </div>
-                    </div>
-                    <p className="text-sm text-gray-700 dark:text-gray-300 italic">“{t.text}”</p>
+                    </motion.div>
+                    <motion.p className="text-sm text-gray-700 dark:text-gray-300 italic" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}>
+                      "{t.text}"
+                    </motion.p>
                   </motion.div>
                 ))}
               </div>
-              {/* small dots */}
+              {/* enhanced dots */}
               <div className="mt-6 flex items-center justify-center gap-2">
                 {testimonials.map((_, i) => (
-                  <button key={i} onClick={() => setCarouselIndex(i)} className={"w-2 h-2 rounded-full " + (i === carouselIndex ? "bg-green-700" : "bg-gray-300") } aria-label={`Go to testimonial ${i + 1}`}></button>
+                  <motion.button
+                    key={i}
+                    onClick={() => setCarouselIndex(i)}
+                    className={"w-3 h-3 rounded-full transition-all duration-300 " + (i === carouselIndex ? "bg-green-700 scale-125" : "bg-gray-300 hover:bg-gray-400")}
+                    whileHover={{ scale: 1.2 }}
+                    whileTap={{ scale: 0.9 }}
+                    aria-label={`Go to testimonial ${i + 1}`}
+                  />
                 ))}
               </div>
             </div>
@@ -659,8 +1050,8 @@ export default function HomeHealthcarePro() {
             <h2 className="text-3xl font-bold text-center text-green-800 dark:text-green-300 mb-10">Insurance & Payment</h2>
             <div className="grid md:grid-cols-2 gap-8">
               <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow">
-                <h3 className="font-semibold mb-2">Insurance Partners</h3>
-                <div className="flex gap-3 overflow-x-auto py-2">
+                <h3 className="text-black font-semibold mb-2">Insurance Partners</h3>
+                <div className="text-black flex gap-3 overflow-x-auto py-2">
                   {insurancePartners.map((p) => (
                     <div key={p.id} className="flex-shrink-0 bg-gray-50 dark:bg-gray-950 p-2 rounded-xl flex items-center gap-3">
                       <img src={p.logo} alt={p.name} className="w-20 h-12 object-contain" />
@@ -670,7 +1061,7 @@ export default function HomeHealthcarePro() {
                 </div>
               </div>
               <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow">
-                <h3 className="font-semibold mb-2">Pricing Transparency</h3>
+                <h3 className="text-black font-semibold mb-2">Pricing Transparency</h3>
                 <p className="text-sm text-gray-600 dark:text-gray-300">We provide upfront estimates and no-surprise billing. Contact us for a custom quote based on your care plan.</p>
                 <a href="#" className="inline-flex items-center gap-2 mt-3 text-green-700 dark:text-green-400 hover:underline"><FileText className="w-4 h-4" /> Download Sample Estimate (PDF)</a>
               </div>
@@ -683,8 +1074,8 @@ export default function HomeHealthcarePro() {
           <div className="grid md:grid-cols-3 gap-8">
             {/* Symptom Checker */}
             <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow">
-              <h3 className="text-xl font-semibold mb-4 flex items-center gap-2"><HeartPulse className="w-5 h-5 text-green-600" /> Quick Symptom Checker</h3>
-              <div className="space-y-3 text-sm">
+              <h3 className="text-black text-xl font-semibold mb-4 flex items-center gap-2"><HeartPulse className="w-5 h-5 text-green-600" /> Quick Symptom Checker</h3>
+              <div className="text-black space-y-3 text-sm">
                 {Object.keys(symptoms).map((k) => (
                   <label key={k} className="flex items-center gap-2">
                     <input type="checkbox" className="accent-green-700" checked={symptoms[k]} onChange={(e) => setSymptoms({ ...symptoms, [k]: e.target.checked })} />
@@ -692,7 +1083,7 @@ export default function HomeHealthcarePro() {
                   </label>
                 ))}
                 <div className="mt-2">
-                  <label className="text-xs">Severity</label>
+                  <label className="text-black text-xs">Severity</label>
                   <select value={severity} onChange={(e) => setSeverity(e.target.value)} className="w-full rounded-xl p-2 border border-gray-200 dark:border-gray-700">
                     <option value="mild">Mild</option>
                     <option value="moderate">Moderate</option>
@@ -706,12 +1097,12 @@ export default function HomeHealthcarePro() {
             {/* FAQ */}
             <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow col-span-2">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-semibold flex items-center gap-2"><MessageSquare className="w-5 h-5 text-green-600" /> FAQs</h3>
-                <div className="flex items-center gap-2">
-                  <input value={faqQuery} onChange={(e) => setFaqQuery(e.target.value)} placeholder="Search..." className="px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-950 text-sm" />
+                <h3 className="text-black text-xl font-semibold flex items-center gap-2"><MessageSquare className="w-5 h-5 text-green-600" /> FAQs</h3>
+                <div className="text-black flex items-center gap-2">
+                  <input value={faqQuery} onChange={(e) => setFaqQuery(e.target.value)} placeholder="Search..." className="text-black px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-950 text-sm" />
                 </div>
               </div>
-              <div className="divide-y divide-gray-200 dark:divide-gray-800">
+              <div className="text-black divide-y divide-gray-200 dark:divide-gray-800">
                 {faqs.filter((f) => (f.q + " " + f.a).toLowerCase().includes(faqQuery.toLowerCase())).map((f, i) => (
                   <div key={i} className="py-3">
                     <button onClick={() => setActiveFAQ(activeFAQ === i ? null : i)} className="w-full flex items-center justify-between text-left">
@@ -787,7 +1178,7 @@ export default function HomeHealthcarePro() {
               ))}
             </div>
             <div className="mt-6 flex items-center justify-center">
-              <button onClick={() => setShowAllBlogs((s) => !s)} className="px-4 py-2 rounded-xl bg-white dark:bg-gray-900 shadow">{showAllBlogs ? "Show less" : "Load more"}</button>
+              <button onClick={() => setShowAllBlogs((s) => !s)} className="text-black Font-bold px-4 py-2 rounded-xl bg-white dark:bg-gray-900 shadow">{showAllBlogs ? "Show less" : "Load more"}</button>
             </div>
           </div>
         </section>
@@ -796,7 +1187,7 @@ export default function HomeHealthcarePro() {
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
           <div className="grid md:grid-cols-3 gap-8">
             <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow">
-              <h3 className="font-semibold mb-3 flex items-center gap-2"><ShieldCheck className="w-5 h-5 text-green-600" /> Patient Safety</h3>
+              <h3 className="text-black font-semibold mb-3 flex items-center gap-2"><ShieldCheck className="w-5 h-5 text-green-600" /> Patient Safety</h3>
               <ul className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
                 <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-600" /> Hand hygiene & PPE compliance</li>
                 <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-600" /> Medication double-check protocol</li>
@@ -804,18 +1195,18 @@ export default function HomeHealthcarePro() {
               </ul>
             </div>
             <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow">
-              <h3 className="font-semibold mb-3 flex items-center gap-2"><Award className="w-5 h-5 text-green-600" /> Awards</h3>
-              <ul className="space-y-2 text-sm">
+              <h3 className="text-black font-semibold mb-3 flex items-center gap-2"><Award className="w-5 h-5 text-green-600" /> Awards</h3>
+              <ul className="text-black space-y-2 text-sm">
                 {awards.map((a, i) => (
                   <li key={i} className="flex items-center gap-2"><Award className="w-4 h-4 text-green-600" /> {a.year} • {a.title} — {a.org}</li>
                 ))}
               </ul>
             </div>
             <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow">
-              <h3 className="font-semibold mb-3 flex items-center gap-2"><Globe className="w-5 h-5 text-green-600" /> Press</h3>
-              <ul className="space-y-2 text-sm">
+              <h3 className="text-black font-semibold mb-3 flex items-center gap-2"><Globe className="w-5 h-5 text-green-600" /> Press</h3>
+              <ul className="text-black space-y-2 text-sm">
                 {press.map((p, i) => (
-                  <li key={i} className="flex items-center gap-2"><LinkIcon className="w-4 h-4 text-green-600" /> <a href={p.link} className="hover:underline">{p.outlet} — {p.headline}</a></li>
+                  <li key={i} className="text-black flex items-center gap-2"><LinkIcon className="w-4 h-4 text-green-600" /> <a href={p.link} className="hover:underline">{p.outlet} — {p.headline}</a></li>
                 ))}
               </ul>
             </div>
@@ -846,27 +1237,27 @@ export default function HomeHealthcarePro() {
             <h2 className="text-3xl font-bold text-center text-green-800 dark:text-green-300 mb-10">Contact Us</h2>
             <div className="grid md:grid-cols-3 gap-6">
               <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow">
-                <h3 className="font-semibold mb-2 flex items-center gap-2"><Phone className="w-5 h-5 text-green-600" /> Call</h3>
+                <h3 className="text-black font-semibold mb-2 flex items-center gap-2"><Phone className="w-5 h-5 text-green-600" /> Call</h3>
                 <a className="text-lg font-semibold text-green-700 dark:text-green-400" href="tel:+922101981110">+92 21 01 98 11 10</a>
                 <p className="text-sm mt-2 text-gray-600 dark:text-gray-300">24/7 hotline for emergencies and urgent care guidance.</p>
                 <button onClick={() => window.open("tel:+922101981110")} className="mt-3 px-3 py-2 bg-green-700 text-white rounded-xl">Call Now</button>
               </div>
               <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow">
-                <h3 className="font-semibold mb-2 flex items-center gap-2"><MapPin className="w-5 h-5 text-green-600" /> Service Area</h3>
-                <p>We currently cover {counts.coverage}+ cities. Coverage expands monthly.</p>
+                <h3 className="text-black font-semibold mb-2 flex items-center gap-2"><MapPin className="w-5 h-5 text-green-600" /> Service Area</h3>
+                <p className="text-black ">We currently cover {counts.coverage}+ cities. Coverage expands monthly.</p>
                 <div className="mt-3 rounded-xl overflow-hidden border border-gray-100 dark:border-gray-800">
                   <iframe title="coverage-map" src={coverageMapSrc} className="w-full h-48 border-0" loading="lazy" />
                 </div>
               </div>
               <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow">
-                <h3 className="font-semibold mb-2 flex items-center gap-2"><Users className="w-5 h-5 text-green-600" /> Social</h3>
+                <h3 className="text-black font-semibold mb-2 flex items-center gap-2"><Users className="w-5 h-5 text-green-600" /> Social</h3>
                 <div className="flex gap-3 text-sm text-green-700 dark:text-green-400">
                   <a href="#" className="hover:underline">Facebook</a>
                   <a href="#" className="hover:underline">Instagram</a>
                   <a href="#" className="hover:underline">LinkedIn</a>
                 </div>
                 <div className="mt-4">
-                  <h4 className="font-medium mb-2">Newsletter</h4>
+                  <h4 className="text-black font-medium mb-2">Newsletter</h4>
                   <div className="flex gap-2">
                     <input placeholder="Your email" className="px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 flex-1" />
                     <button className="px-3 py-2 bg-green-700 text-white rounded-xl">Subscribe</button>

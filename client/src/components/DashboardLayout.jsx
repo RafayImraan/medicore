@@ -257,7 +257,7 @@ const DashboardLayout = ({
             className={`flex items-center gap-2 px-4 py-2 rounded-lg transition ${
               isEditMode
                 ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                : 'lux-surface-muted lux-text hover:bg-gray-200'
             }`}
           >
             <FaCog /> {isEditMode ? 'Exit Edit' : 'Edit Layout'}
@@ -287,7 +287,7 @@ const DashboardLayout = ({
       {isEditMode && (
         <div className="space-y-6 mb-6">
           {/* Widget Visibility Controls */}
-          <div className="bg-white p-4 rounded-2xl shadow-md">
+          <div className="lux-surface p-4 rounded-2xl shadow-md">
             <h3 className="text-lg font-semibold mb-3">Widget Visibility</h3>
             <div className="flex flex-wrap gap-4">
               {Object.entries(widgetVisibility).map(([widgetId, isVisible]) => (
@@ -297,7 +297,7 @@ const DashboardLayout = ({
                   className={`flex items-center gap-2 px-3 py-2 rounded-lg transition ${
                     isVisible
                       ? 'bg-blue-100 text-blue-700'
-                      : 'bg-gray-100 text-gray-500'
+                      : 'lux-surface-muted lux-muted'
                   }`}
                 >
                   {isVisible ? <FaEye /> : <FaEyeSlash />}
@@ -308,16 +308,16 @@ const DashboardLayout = ({
           </div>
 
           {/* Widget Size Controls */}
-          <div className="bg-white p-4 rounded-2xl shadow-md">
+          <div className="lux-surface p-4 rounded-2xl shadow-md">
             <h3 className="text-lg font-semibold mb-3">Widget Size Controls</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {layout.map((item) => (
                 <div key={item.i} className="border rounded-lg p-3">
-                  <h4 className="font-medium text-gray-700 mb-2">
+                  <h4 className="font-medium lux-text mb-2">
                     {item.i.charAt(0).toUpperCase() + item.i.slice(1)}
                   </h4>
                   <div className="flex gap-2 items-center">
-                    <label className="text-sm text-gray-600">Width:</label>
+                    <label className="text-sm lux-muted">Width:</label>
                     <input
                       type="number"
                       min={item.minW || 1}
@@ -326,7 +326,7 @@ const DashboardLayout = ({
                       onChange={(e) => updateWidgetSize(item.i, parseInt(e.target.value), item.h)}
                       className="w-16 px-2 py-1 border rounded text-sm"
                     />
-                    <label className="text-sm text-gray-600">Height:</label>
+                    <label className="text-sm lux-muted">Height:</label>
                     <input
                       type="number"
                       min={item.minH || 1}
@@ -342,7 +342,7 @@ const DashboardLayout = ({
           </div>
 
           {/* Layout Templates */}
-          <div className="bg-white p-4 rounded-2xl shadow-md">
+          <div className="lux-surface p-4 rounded-2xl shadow-md">
             <h3 className="text-lg font-semibold mb-3">Layout Templates</h3>
             <div className="flex flex-wrap gap-4">
               <button
@@ -367,7 +367,7 @@ const DashboardLayout = ({
           </div>
 
           {/* Export/Import Controls */}
-          <div className="bg-white p-4 rounded-2xl shadow-md">
+          <div className="lux-surface p-4 rounded-2xl shadow-md">
             <h3 className="text-lg font-semibold mb-3">Layout Management</h3>
             <div className="flex flex-wrap gap-4">
               <button
@@ -401,7 +401,7 @@ const DashboardLayout = ({
             <FaCog /> Demo Data
           </span>
         )}
-        <span className="text-gray-500">Last updated: {lastUpdated.toLocaleTimeString()}</span>
+        <span className="lux-muted">Last updated: {lastUpdated.toLocaleTimeString()}</span>
         <button
           onClick={refreshStats}
           className="ml-4 px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition flex items-center gap-1"
@@ -426,10 +426,10 @@ const DashboardLayout = ({
         resizeHandles={['se']}
       >
         {visibleWidgets.map((item) => (
-          <div key={item.i} className="bg-gray-50 rounded-2xl overflow-hidden">
+          <div key={item.i} className="lux-surface-muted rounded-2xl overflow-hidden">
             {isEditMode && (
               <div className="drag-handle bg-gray-200 p-2 cursor-move flex items-center justify-between">
-                <span className="text-sm font-medium text-gray-700">
+                <span className="text-sm font-medium lux-text">
                   {item.i.charAt(0).toUpperCase() + item.i.slice(1)} Widget
                 </span>
                 <div className="flex gap-1">
@@ -450,8 +450,8 @@ const DashboardLayout = ({
       {visibleWidgets.length === 0 && (
         <div className="text-center py-12">
           <FaEyeSlash className="text-6xl text-gray-300 mx-auto mb-4" />
-          <h3 className="text-xl font-semibold text-gray-500 mb-2">No widgets visible</h3>
-          <p className="text-gray-400">Enable widgets in edit mode to see your dashboard content.</p>
+          <h3 className="text-xl font-semibold lux-muted mb-2">No widgets visible</h3>
+          <p className="lux-muted">Enable widgets in edit mode to see your dashboard content.</p>
         </div>
       )}
     </div>
