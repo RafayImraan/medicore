@@ -63,7 +63,7 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-charcoal-950 via-primary-900/30 to-charcoal-950 flex items-center justify-center p-6 relative overflow-hidden">
+    <div className="min-h-screen flex items-center justify-center p-6 relative overflow-hidden">
       {/* Soft background gradient behind card */}
       <div className="absolute inset-0 bg-gradient-to-br from-primary-900/10 via-transparent to-luxury-gold/5"></div>
 
@@ -89,7 +89,7 @@ const Login = () => {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}
       >
-        <div className="bg-charcoal-800/60 backdrop-blur-md rounded-2xl p-8 shadow-2xl shadow-charcoal-950/30 border border-primary-900/40 relative">
+        <div className="premium-panel backdrop-blur-md rounded-2xl p-8 relative">
           {/* Inner shadow for depth */}
           <div className="absolute inset-0 bg-gradient-to-br from-transparent via-transparent to-charcoal-900/20 rounded-2xl"></div>
 
@@ -119,7 +119,7 @@ const Login = () => {
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-gradient-to-r from-red-900/50 to-red-800/50 border border-red-700/50 rounded-xl p-4 text-red-200 text-sm backdrop-blur-sm"
+                className="bg-gradient-to-r from-red-950/80 to-red-900/80 border border-red-700/50 rounded-xl p-4 text-red-100 text-sm backdrop-blur-sm"
               >
                 {error}
               </motion.div>
@@ -137,7 +137,7 @@ const Login = () => {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 bg-charcoal-800/50 border border-primary-800/30 rounded-xl text-white placeholder-muted-500 focus:border-primary-600 focus:ring-2 focus:ring-primary-600/50 transition-all duration-300 shadow-lg shadow-charcoal-950/20"
+                  className="w-full pl-10 pr-4 py-3 bg-charcoal-950/60 border border-white/10 rounded-xl text-white placeholder-muted-500 focus:border-accent-500/60 focus:ring-2 focus:ring-accent-500/25 transition-all duration-300 shadow-lg shadow-charcoal-950/20"
                   placeholder="Enter your email"
                   whileFocus={{ scale: 1.02, boxShadow: "0 0 20px rgba(59, 130, 246, 0.3)" }}
                 />
@@ -163,7 +163,7 @@ const Login = () => {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-12 py-3 bg-charcoal-800/50 border border-primary-800/30 rounded-xl text-white placeholder-muted-500 focus:border-primary-600 focus:ring-2 focus:ring-primary-600/50 transition-all duration-300 shadow-lg shadow-charcoal-950/20"
+                  className="w-full pl-10 pr-12 py-3 bg-charcoal-950/60 border border-white/10 rounded-xl text-white placeholder-muted-500 focus:border-accent-500/60 focus:ring-2 focus:ring-accent-500/25 transition-all duration-300 shadow-lg shadow-charcoal-950/20"
                   placeholder="Enter your password"
                   whileFocus={{ scale: 1.02, boxShadow: "0 0 20px rgba(59, 130, 246, 0.3)" }}
                 />

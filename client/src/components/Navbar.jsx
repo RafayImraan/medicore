@@ -9,7 +9,6 @@ const Navbar = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [hidden, setHidden] = useState(false);
-  const [theme, setTheme] = useState('dark'); // Add theme state for dark/light mode
   const dropdownRef = useRef();
   const mobileMenuRef = useRef();
   const location = useLocation();
@@ -83,7 +82,7 @@ const Navbar = () => {
             <span className="text-xl font-bold bg-gradient-to-r from-luxury-gold via-primary-300 to-luxury-silver bg-clip-text text-transparent tracking-wider">
               MEDICORE
             </span>
-            <div className="text-xs text-muted-400 font-medium tracking-widest">
+            <div className="text-xs text-muted-400 font-medium tracking-[0.32em]">
               PREMIUM HEALTHCARE
             </div>
           </div>
@@ -155,7 +154,7 @@ const Navbar = () => {
             onClick={toggleMobileMenu}
             aria-label="Toggle mobile menu"
             aria-expanded={mobileMenuOpen}
-            className="lg:hidden p-3 rounded-xl bg-charcoal-800/50 hover:bg-charcoal-700/50 backdrop-blur-sm border border-primary-800/30 hover:border-primary-700/50 transition-all duration-300"
+            className="lg:hidden p-3 rounded-xl bg-charcoal-900/75 hover:bg-charcoal-800/90 backdrop-blur-sm border border-white/10 hover:border-accent-500/40 transition-all duration-300"
           >
             {mobileMenuOpen ? (
               <FaTimes className="w-5 h-5 text-muted-300" />
@@ -199,7 +198,7 @@ const Navbar = () => {
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -10 }}
                       transition={{ duration: 0.3 }}
-                      className="absolute right-0 mt-3 w-56 bg-charcoal-900/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-primary-800/30 overflow-hidden"
+                      className="absolute right-0 mt-3 w-56 premium-panel backdrop-blur-xl rounded-2xl overflow-hidden"
                       role="menu"
                     >
                       <Link
@@ -245,7 +244,7 @@ const Navbar = () => {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.3 }}
-            className="lg:hidden mt-4 pb-4 border-t border-primary-800/30 pt-4 space-y-1 backdrop-blur-xl"
+            className="lg:hidden mt-4 pb-4 border-t border-white/10 pt-4 space-y-1 backdrop-blur-xl"
           >
             {navLinks.map((link) => (
               <Link

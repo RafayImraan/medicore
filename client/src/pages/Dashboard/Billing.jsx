@@ -1,7 +1,24 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { apiRequest } from '../../services/api';
 
 const billingStatuses = ['Paid', 'Pending', 'Cancelled', 'Partial'];
+
+const Panel = ({ children, className = '' }) => (
+  <section
+    className={`rounded-[28px] border border-white/10 bg-white/5 p-5 shadow-[0_24px_80px_rgba(4,10,28,0.45)] backdrop-blur-xl ${className}`}
+  >
+    {children}
+  </section>
+);
+
+const statusTone = {
+  Paid: 'border-emerald-500/30 bg-emerald-500/15 text-emerald-200',
+  Pending: 'border-amber-500/30 bg-amber-500/15 text-amber-200',
+  Cancelled: 'border-rose-500/30 bg-rose-500/15 text-rose-200',
+  Partial: 'border-cyan-500/30 bg-cyan-500/15 text-cyan-200',
+};
+
+const formatCurrency = (value) => `Rs. ${Number(value || 0).toLocaleString()}`;
 
 const Billing = () => {
   const [bills, setBills] = useState([]);
@@ -21,239 +38,255 @@ const Billing = () => {
         if (search) query.set('search', search);
         if (dateRange.from) query.set('dateFrom', dateRange.from);
         if (dateRange.to) query.set('dateTo', dateRange.to);
-        const res = await apiRequest(`/api/billing${query.toString() ? `?${query.toString()}` : ''}`);
-        setBills(res.items || []);
+        const response = await apiRequest(`/api/billing${query.toString() ? `?${query.toString()}` : ''}`);
+        setBills(response.items || []);
       } catch (err) {
         console.error('Failed to load bills:', err);
       } finally {
         setLoading(false);
       }
     };
+
     fetchBills();
-  }, [statusFilter, search, dateRange.from, dateRange.to]);
+  }, [dateRange.from, dateRange.to, search, statusFilter]);
 
-  const uniquePatients = [...new Set(bills.map(b => b.patient))];
+  const uniquePatients = useMemo(() => [...new Set(bills.map((bill) => bill.patient).filter(Boolean))], [bills]);
 
-  const filtered = bills.filter(bill => {
-    const matchStatus = statusFilter === 'All' || bill.status === statusFilter;
-    const matchPatient = patientFilter === 'All' || bill.patient === patientFilter;
-    const matchSearch =
-      bill.patient.toLowerCase().includes(search.toLowerCase()) ||
-      bill.service.toLowerCase().includes(search.toLowerCase()) ||
-      bill.id.toLowerCase().includes(search.toLowerCase());
-    const matchDate =
-      (!dateRange.from || new Date(bill.createdAt) >= new Date(dateRange.from)) &&
-      (!dateRange.to || new Date(bill.createdAt) <= new Date(dateRange.to));
-    return matchStatus && matchPatient && matchSearch && matchDate;
-  });
+  const filtered = useMemo(() => {
+    return bills.filter((bill) => {
+      const matchStatus = statusFilter === 'All' || bill.status === statusFilter;
+      const matchPatient = patientFilter === 'All' || bill.patient === patientFilter;
+      const matchSearch =
+        (bill.patient || '').toLowerCase().includes(search.toLowerCase()) ||
+        (bill.service || '').toLowerCase().includes(search.toLowerCase()) ||
+        (bill.id || '').toLowerCase().includes(search.toLowerCase());
+      const matchDate =
+        (!dateRange.from || new Date(bill.createdAt) >= new Date(dateRange.from)) &&
+        (!dateRange.to || new Date(bill.createdAt) <= new Date(dateRange.to));
+      return matchStatus && matchPatient && matchSearch && matchDate;
+    });
+  }, [bills, dateRange.from, dateRange.to, patientFilter, search, statusFilter]);
 
-  const sorted = [...filtered].sort((a, b) => {
-    if (sortOption === 'amount') return b.amount - a.amount;
-    if (sortOption === 'oldest') return new Date(a.createdAt) - new Date(b.createdAt);
-    return new Date(b.createdAt) - new Date(a.createdAt); // recent
-  });
+  const sorted = useMemo(() => {
+    return [...filtered].sort((left, right) => {
+      if (sortOption === 'amount') return (right.totalAmount || right.amount || 0) - (left.totalAmount || left.amount || 0);
+      if (sortOption === 'oldest') return new Date(left.createdAt) - new Date(right.createdAt);
+      return new Date(right.createdAt) - new Date(left.createdAt);
+    });
+  }, [filtered, sortOption]);
 
-  const totalRevenue = bills.reduce((sum, bill) => bill.status === 'Paid' ? sum + bill.totalAmount : sum, 0);
-  const unpaidTotal = bills.reduce((sum, bill) => bill.status === 'Pending' ? sum + bill.totalAmount : sum, 0);
-  const topService = bills.reduce((acc, bill) => {
-    acc[bill.service] = (acc[bill.service] || 0) + bill.totalAmount;
-    return acc;
+  const totalRevenue = bills.reduce((sum, bill) => (bill.status === 'Paid' ? sum + (bill.totalAmount || 0) : sum), 0);
+  const unpaidTotal = bills.reduce((sum, bill) => (bill.status === 'Pending' ? sum + (bill.totalAmount || 0) : sum), 0);
+  const topService = bills.reduce((accumulator, bill) => {
+    accumulator[bill.service] = (accumulator[bill.service] || 0) + (bill.totalAmount || 0);
+    return accumulator;
   }, {});
-  const topServiceName = Object.entries(topService).sort((a, b) => b[1] - a[1])[0]?.[0] || '—';
+  const topServiceName = Object.entries(topService).sort((a, b) => b[1] - a[1])[0]?.[0] || 'N/A';
+  const averageBill = bills.length
+    ? Math.floor(bills.reduce((sum, bill) => sum + (bill.totalAmount || 0), 0) / bills.length)
+    : 0;
+
+  const updateBillStatus = async (billId, status) => {
+    await apiRequest(`/api/billing/${billId}/payment-status`, {
+      method: 'PUT',
+      body: JSON.stringify({ paymentStatus: status }),
+    });
+    setBills((current) => current.map((bill) => (bill.id === billId ? { ...bill, status } : bill)));
+  };
+
+  const deleteBill = async (billId) => {
+    await apiRequest(`/api/billing/${billId}`, { method: 'DELETE' });
+    setBills((current) => current.filter((bill) => bill.id !== billId));
+  };
+
+  const controlClass =
+    'w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-sm text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-cyan-400/50 focus:ring-2 focus:ring-cyan-400/20';
 
   return (
-    <div className="p-6 space-y-6">
-      <h1 className="text-3xl font-bold">💸 Billing Dashboard</h1>
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,#10335b_0%,#08111f_48%,#030712_100%)] px-4 py-6 text-slate-100 sm:px-6 lg:px-8">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
+        <Panel className="overflow-hidden">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(56,189,248,0.16),transparent_35%),radial-gradient(circle_at_bottom_left,rgba(34,197,94,0.14),transparent_30%)]" />
+          <div className="relative grid gap-8 lg:grid-cols-[1.5fr_1fr]">
+            <div className="space-y-4">
+              <span className="inline-flex items-center rounded-full border border-cyan-400/25 bg-cyan-400/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.28em] text-cyan-200">
+                Finance Control
+              </span>
+              <div className="space-y-3">
+                <h1 className="font-serif text-4xl text-white sm:text-5xl">Billing Command</h1>
+                <p className="max-w-3xl text-sm leading-7 text-slate-300 sm:text-base">
+                  Monitor collections, isolate payment friction, and update invoice status from a cleaner finance workspace.
+                </p>
+              </div>
+            </div>
 
-      {/* 🔍 Filter Controls */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <input
-          type="text"
-          placeholder="Search by name or ID"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          className="p-2 border rounded w-full"
-        />
-        <select
-          value={statusFilter}
-          onChange={e => setStatusFilter(e.target.value)}
-          className="p-2 border rounded"
-        >
-          <option>All</option>
-          {billingStatuses.map(status => (
-            <option key={status}>{status}</option>
-          ))}
-        </select>
-        <select
-          value={patientFilter}
-          onChange={e => setPatientFilter(e.target.value)}
-          className="p-2 border rounded"
-        >
-          <option>All</option>
-          {uniquePatients.map(patient => (
-            <option key={patient}>{patient}</option>
-          ))}
-        </select>
-        <select
-          value={sortOption}
-          onChange={e => setSortOption(e.target.value)}
-          className="p-2 border rounded"
-        >
-          <option value="recent">Newest First</option>
-          <option value="oldest">Oldest First</option>
-          <option value="amount">Amount Desc</option>
-        </select>
-        <div className="flex gap-2">
-          <input
-            type="date"
-            className="p-2 border rounded w-full"
-            onChange={e => setDateRange(prev => ({ ...prev, from: e.target.value }))}
-          />
-          <input
-            type="date"
-            className="p-2 border rounded w-full"
-            onChange={e => setDateRange(prev => ({ ...prev, to: e.target.value }))}
-          />
-        </div>
-      </div>
+            <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+              <div className="rounded-3xl border border-white/10 bg-slate-950/55 p-4">
+                <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Collected</p>
+                <p className="mt-2 text-3xl font-semibold text-emerald-300">{formatCurrency(totalRevenue)}</p>
+                <p className="mt-2 text-sm text-slate-400">Revenue cleared across paid invoices.</p>
+              </div>
+              <div className="rounded-3xl border border-white/10 bg-slate-950/55 p-4">
+                <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Pending</p>
+                <p className="mt-2 text-3xl font-semibold text-amber-300">{formatCurrency(unpaidTotal)}</p>
+                <p className="mt-2 text-sm text-slate-400">Awaiting payment confirmation.</p>
+              </div>
+              <div className="rounded-3xl border border-white/10 bg-slate-950/55 p-4">
+                <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Top Service</p>
+                <p className="mt-2 text-lg font-semibold text-white">{topServiceName}</p>
+                <p className="mt-2 text-sm text-slate-400">Average bill {formatCurrency(averageBill)}.</p>
+              </div>
+            </div>
+          </div>
+        </Panel>
 
-      {/* 📊 Analytics Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-        <div className="p-4 bg-green-100 rounded text-center font-semibold">
-          🧮 Total Revenue: Rs. {totalRevenue}
-        </div>
-        <div className="p-4 bg-red-100 rounded text-center font-semibold">
-          ❌ Pending Amount: Rs. {unpaidTotal}
-        </div>
-        <div className="p-4 bg-blue-100 rounded text-center font-semibold">
-          🩺 Top Service: {topServiceName}
-        </div>
-      </div>
-            {/* 🧾 Billing Table */}
-      <div className="overflow-x-auto">
-        <table className="min-w-full border bg-white shadow rounded mt-4 text-sm">
-          <thead className="bg-gray-100">
-            <tr>
-              <th className="px-3 py-2">Bill ID</th>
-              <th>Patient</th>
-              <th>Service</th>
-              <th>Department</th>
-              <th>Amount</th>
-              <th>Tax</th>
-              <th>Discount</th>
-              <th>Total</th>
-              <th>Status</th>
-              <th>Payment</th>
-              <th>Date</th>
-              <th>Notes</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.map(bill => (
-              <tr key={bill.id} className="border-t hover:bg-gray-50 text-center">
-                <td className="px-3 py-2 font-medium">{bill.id}</td>
-                <td>{bill.patient}</td>
-                <td>{bill.service}</td>
-                <td>{bill.department}</td>
-                <td>Rs. {bill.amount}</td>
-                <td>Rs. {bill.tax}</td>
-                <td>{bill.discount > 0 ? `- Rs. ${bill.discount}` : '—'}</td>
-                <td className="font-semibold text-green-700">
-                  Rs. {bill.totalAmount}
-                </td>
-                <td>
-                  <span className={`px-2 py-1 text-xs rounded ${
-                    bill.status === 'Paid'
-                      ? 'bg-green-100 text-green-800'
-                      : bill.status === 'Pending'
-                      ? 'bg-yellow-100 text-yellow-800'
-                      : 'bg-red-100 text-red-800'
-                  }`}>
-                    {bill.status}
-                  </span>
-                </td>
-                <td>{bill.paymentMethod}</td>
-                <td>{new Date(bill.createdAt).toLocaleDateString()}</td>
-                <td className="text-gray-500 text-xs">{bill.notes}</td>
-                <td className="flex gap-1 justify-center flex-wrap py-1">
-                  {billingStatuses.map(status => (
-                    <button
-                      key={status}
-                      onClick={() =>
-                        apiRequest(`/api/billing/${bill.id}/payment-status`, {
-                          method: 'PUT',
-                          body: JSON.stringify({ paymentStatus: status })
-                        }).then(() => {
-                          setBills(prev =>
-                            prev.map(b =>
-                              b.id === bill.id ? { ...b, status } : b
-                            )
-                          );
-                        })
-                      }
-                      className={`text-xs px-2 py-1 rounded ${
-                        bill.status === status ? 'bg-gray-800 text-white' : 'bg-gray-200'
-                      }`}
-                    >
-                      {status}
-                    </button>
+        <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
+          <Panel className="space-y-5">
+            <div>
+              <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Filters</p>
+              <h2 className="mt-2 text-2xl font-semibold text-white">Revenue Slices</h2>
+              <p className="mt-2 text-sm text-slate-400">Search by patient or invoice, then narrow by status and billing window.</p>
+            </div>
+
+            <div className="space-y-4">
+              <input
+                type="text"
+                placeholder="Search patient, service, or bill ID"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                className={controlClass}
+              />
+              <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className={controlClass}>
+                <option>All</option>
+                {billingStatuses.map((status) => (
+                  <option key={status}>{status}</option>
+                ))}
+              </select>
+              <select value={patientFilter} onChange={(event) => setPatientFilter(event.target.value)} className={controlClass}>
+                <option>All</option>
+                {uniquePatients.map((patient) => (
+                  <option key={patient}>{patient}</option>
+                ))}
+              </select>
+              <select value={sortOption} onChange={(event) => setSortOption(event.target.value)} className={controlClass}>
+                <option value="recent">Newest first</option>
+                <option value="oldest">Oldest first</option>
+                <option value="amount">Largest amount</option>
+              </select>
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
+                <input
+                  type="date"
+                  value={dateRange.from}
+                  onChange={(event) => setDateRange((prev) => ({ ...prev, from: event.target.value }))}
+                  className={controlClass}
+                />
+                <input
+                  type="date"
+                  value={dateRange.to}
+                  onChange={(event) => setDateRange((prev) => ({ ...prev, to: event.target.value }))}
+                  className={controlClass}
+                />
+              </div>
+            </div>
+          </Panel>
+
+          <Panel className="overflow-hidden">
+            <div className="flex flex-col gap-3 border-b border-white/10 pb-4 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Invoices</p>
+                <h2 className="mt-2 text-2xl font-semibold text-white">Collections Queue</h2>
+              </div>
+              <div className="rounded-full border border-white/10 bg-slate-950/50 px-4 py-2 text-sm text-slate-300">
+                {sorted.length} matching bills
+              </div>
+            </div>
+
+            <div className="mt-5 overflow-x-auto">
+              <table className="min-w-full text-left text-sm">
+                <thead className="text-xs uppercase tracking-[0.24em] text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3 font-medium">Invoice</th>
+                    <th className="px-4 py-3 font-medium">Patient</th>
+                    <th className="px-4 py-3 font-medium">Service</th>
+                    <th className="px-4 py-3 font-medium">Total</th>
+                    <th className="px-4 py-3 font-medium">Status</th>
+                    <th className="px-4 py-3 font-medium">Payment</th>
+                    <th className="px-4 py-3 font-medium">Date</th>
+                    <th className="px-4 py-3 font-medium">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sorted.map((bill) => (
+                    <tr key={bill.id} className="border-t border-white/8 align-top text-slate-200">
+                      <td className="px-4 py-4">
+                        <p className="font-semibold text-white">{bill.id}</p>
+                        <p className="mt-1 text-xs text-slate-400">{bill.department || 'General'} department</p>
+                      </td>
+                      <td className="px-4 py-4">
+                        <p className="font-medium text-white">{bill.patient}</p>
+                        <p className="mt-1 text-xs text-slate-400">{bill.notes || 'No finance note'}</p>
+                      </td>
+                      <td className="px-4 py-4">
+                        <p className="font-medium text-white">{bill.service}</p>
+                        <p className="mt-1 text-xs text-slate-400">
+                          Amount {formatCurrency(bill.amount)} / Tax {formatCurrency(bill.tax)}
+                        </p>
+                      </td>
+                      <td className="px-4 py-4">
+                        <p className="font-semibold text-emerald-300">{formatCurrency(bill.totalAmount)}</p>
+                        <p className="mt-1 text-xs text-slate-400">
+                          {bill.discount > 0 ? `Discount ${formatCurrency(bill.discount)}` : 'No discount'}
+                        </p>
+                      </td>
+                      <td className="px-4 py-4">
+                        <span
+                          className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${
+                            statusTone[bill.status] || 'border-white/10 bg-white/5 text-slate-300'
+                          }`}
+                        >
+                          {bill.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 text-slate-300">{bill.paymentMethod || 'N/A'}</td>
+                      <td className="px-4 py-4 text-slate-300">
+                        {bill.createdAt ? new Date(bill.createdAt).toLocaleDateString() : 'N/A'}
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex flex-wrap gap-2">
+                          {billingStatuses.map((status) => {
+                            const isActive = bill.status === status;
+                            return (
+                              <button
+                                key={status}
+                                type="button"
+                                onClick={() => updateBillStatus(bill.id, status)}
+                                className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                                  isActive
+                                    ? 'border-cyan-400/35 bg-cyan-400/15 text-cyan-100'
+                                    : 'border-white/10 bg-white/5 text-slate-300 hover:border-white/20 hover:bg-white/10'
+                                }`}
+                              >
+                                {status}
+                              </button>
+                            );
+                          })}
+                          <button
+                            type="button"
+                            onClick={() => deleteBill(bill.id)}
+                            className="rounded-full border border-rose-500/20 bg-rose-500/10 px-3 py-1 text-xs font-semibold text-rose-200 transition hover:bg-rose-500/15"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
                   ))}
-                  <button
-                    onClick={() =>
-                      apiRequest(`/api/billing/${bill.id}`, {
-                        method: 'DELETE'
-                      }).then(() => setBills(prev => prev.filter(b => b.id !== bill.id)))
-                    }
-                    className="bg-red-200 text-red-800 text-xs px-2 py-1 rounded"
-                  >
-                    🗑 Delete
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {loading && <div className="text-sm text-gray-500 mt-2">Loading bills...</div>}
-      </div>
-            {/* 📤 Export & Notifications UI */}
-      <div className="mt-6 bg-gray-50 border-l-4 border-gray-300 p-4 text-xs rounded space-y-2">
-        📁 <strong>Export:</strong> Billing summary available as CSV/PDF via finance panel.
-        <br />
-        💬 <strong>Notifications:</strong> SMS/email alerts sent for unpaid bills (mocked).
-        <br />
-        🧾 <strong>Audit Log:</strong> Last status change by Staff#425 on {new Date().toLocaleDateString()}.
-        <br />
-        🔐 <strong>Access:</strong> Only finance/admin roles can edit or delete bills (simulation).
-        <br />
-        🛜 <strong>Sync:</strong> Payment status integrated with EMR & appointments module.
-      </div>
+                </tbody>
+              </table>
 
-      {/* 🚨 Overdue Alert Simulation */}
-      <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-red-100 border-l-4 border-red-500 p-4 text-sm rounded">
-          ❗ <strong>Overdue Bills:</strong> 21 patients have unpaid dues past 14 days.
-        </div>
-        <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 text-sm rounded">
-          🕒 <strong>Pending Payments:</strong> Scheduled for review this week.
-        </div>
-      </div>
-
-      {/* 🧩 Final Insights */}
-      <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-blue-50 p-3 rounded text-sm">
-          📊 <strong>Average Bill:</strong> Rs. {bills.length ? Math.floor(bills.reduce((sum, b) => sum + b.totalAmount, 0) / bills.length) : 0}
-        </div>
-        <div className="bg-green-50 p-3 rounded text-sm">
-          🧍 <strong>Most Billed Patient:</strong>{' '}
-          {
-            Object.entries(
-              bills.reduce((acc, bill) => {
-                acc[bill.patient] = (acc[bill.patient] || 0) + 1;
-                return acc;
-              }, {})
-            ).sort((a, b) => b[1] - a[1])[0]?.[0] || '—'
-          }
+              {loading && <div className="mt-4 text-sm text-slate-400">Loading bills...</div>}
+            </div>
+          </Panel>
         </div>
       </div>
     </div>
@@ -261,5 +294,3 @@ const Billing = () => {
 };
 
 export default Billing;
-
-

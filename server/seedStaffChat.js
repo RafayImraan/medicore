@@ -11,7 +11,7 @@ const messageTemplates = [
   'Shift handover at 8 PM sharp.',
   'Medication delivery delayed 15 minutes.',
   'Urgent lab result needs review.',
-  'Can someone confirm tomorrow\\'s rota?',
+  "Can someone confirm tomorrow's rota?",
   'Patient needs wheelchair assistance.',
   'Emergency code red - all available staff to ER.',
   'MRI room maintenance scheduled at 3 PM.',

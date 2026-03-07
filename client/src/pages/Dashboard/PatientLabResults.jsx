@@ -1,7 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import axios from 'axios';
-import { FlaskConical, Calendar, FileText, Download, AlertCircle, CheckCircle } from 'lucide-react';
+import { apiRequest } from '../../services/api';
+
+const Panel = ({ children, className = '' }) => (
+  <section
+    className={`rounded-[28px] border border-white/10 bg-white/5 p-5 shadow-[0_24px_80px_rgba(4,10,28,0.45)] backdrop-blur-xl ${className}`}
+  >
+    {children}
+  </section>
+);
+
+const statusTone = {
+  Ready: 'border-emerald-500/30 bg-emerald-500/15 text-emerald-200',
+  Pending: 'border-amber-500/30 bg-amber-500/15 text-amber-200',
+  Reviewed: 'border-cyan-500/30 bg-cyan-500/15 text-cyan-200',
+};
 
 const PatientLabResults = () => {
   const { user } = useAuth();
@@ -11,12 +24,12 @@ const PatientLabResults = () => {
 
   useEffect(() => {
     const fetchLabResults = async () => {
-      if (!user || !user._id) return;
+      if (!user?._id) return;
 
       try {
         setLoading(true);
-        const response = await axios.get(`/api/patients/${user._id}/lab-results`);
-        setLabResults(response.data);
+        const response = await apiRequest(`/api/patients/${user._id}/lab-results`);
+        setLabResults(Array.isArray(response) ? response : []);
       } catch (err) {
         console.error('Failed to fetch lab results:', err);
         setError('Failed to load lab results. Please try again later.');
@@ -26,122 +39,100 @@ const PatientLabResults = () => {
     };
 
     fetchLabResults();
-  }, [user]);
-
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case 'Ready':
-        return <CheckCircle className="w-5 h-5 text-green-500" />;
-      case 'Pending':
-        return <AlertCircle className="w-5 h-5 text-yellow-500" />;
-      case 'Reviewed':
-        return <FileText className="w-5 h-5 text-blue-500" />;
-      default:
-        return <AlertCircle className="w-5 h-5 text-gray-500" />;
-    }
-  };
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'Ready':
-        return 'bg-green-100 text-green-800';
-      case 'Pending':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'Reviewed':
-        return 'bg-blue-100 text-blue-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
+  }, [user?._id]);
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading lab results...</p>
-        </div>
+      <div className="min-h-screen bg-[radial-gradient(circle_at_top,#10335b_0%,#08111f_48%,#030712_100%)] px-4 py-6 text-slate-100">
+        <div className="flex min-h-[60vh] items-center justify-center text-sm text-slate-400">Loading lab results...</div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <AlertCircle className="w-12 h-12 text-red-500 mx-auto" />
-          <p className="mt-4 text-red-600">{error}</p>
-        </div>
+      <div className="min-h-screen bg-[radial-gradient(circle_at_top,#10335b_0%,#08111f_48%,#030712_100%)] px-4 py-6 text-slate-100">
+        <div className="flex min-h-[60vh] items-center justify-center text-sm text-rose-300">{error}</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-            <FlaskConical className="w-8 h-8 text-green-600" />
-            Lab Results
-          </h1>
-          <p className="mt-2 text-gray-600">View and download your laboratory test results</p>
-        </div>
-
-        {/* Lab Results List */}
-        {labResults.length === 0 ? (
-          <div className="bg-white rounded-lg shadow p-8 text-center">
-            <FlaskConical className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No Lab Results Found</h3>
-            <p className="text-gray-600">You don't have any lab results available yet.</p>
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,#10335b_0%,#08111f_48%,#030712_100%)] px-4 py-6 text-slate-100 sm:px-6 lg:px-8">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
+        <Panel className="overflow-hidden">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(56,189,248,0.16),transparent_35%),radial-gradient(circle_at_bottom_left,rgba(34,197,94,0.14),transparent_30%)]" />
+          <div className="relative space-y-4">
+            <span className="inline-flex items-center rounded-full border border-cyan-400/25 bg-cyan-400/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.28em] text-cyan-200">
+              Diagnostics Archive
+            </span>
+            <div className="space-y-3">
+              <h1 className="font-serif text-4xl text-white sm:text-5xl">Lab Results</h1>
+              <p className="max-w-3xl text-sm leading-7 text-slate-300 sm:text-base">
+                Review your test outcomes, track review status, and download copies for follow-up care.
+              </p>
+            </div>
           </div>
+        </Panel>
+
+        {labResults.length === 0 ? (
+          <Panel className="text-center">
+            <p className="text-lg font-semibold text-white">No lab results found</p>
+            <p className="mt-2 text-sm text-slate-400">You do not have any laboratory reports available yet.</p>
+          </Panel>
         ) : (
-          <div className="grid gap-6">
+          <div className="grid gap-5">
             {labResults.map((result) => (
-              <div key={result._id} className="bg-white rounded-lg shadow p-6">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      {getStatusIcon(result.status)}
-                      <h3 className="text-xl font-semibold text-gray-900">{result.testName}</h3>
-                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(result.status)}`}>
-                        {result.status}
+              <Panel key={result._id}>
+                <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="flex-1 space-y-4">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <h2 className="text-xl font-semibold text-white">{result.testName}</h2>
+                      <span
+                        className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${
+                          statusTone[result.status] || 'border-white/10 bg-white/5 text-slate-300'
+                        }`}
+                      >
+                        {result.status || 'Pending'}
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                      <div className="flex items-center gap-2 text-gray-600">
-                        <Calendar className="w-4 h-4" />
-                        <span className="text-sm">
-                          {new Date(result.date).toLocaleDateString('en-US', {
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric'
-                          })}
-                        </span>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="rounded-2xl border border-white/10 bg-slate-950/45 p-4">
+                        <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Collected</p>
+                        <p className="mt-2 font-semibold text-white">
+                          {result.date
+                            ? new Date(result.date).toLocaleDateString('en-US', {
+                                year: 'numeric',
+                                month: 'long',
+                                day: 'numeric',
+                              })
+                            : 'N/A'}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl border border-white/10 bg-slate-950/45 p-4">
+                        <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Reference Range</p>
+                        <p className="mt-2 text-sm text-slate-300">{result.referenceRange || 'Not specified'}</p>
                       </div>
                     </div>
 
-                    <div className="bg-gray-50 rounded-lg p-4">
-                      <h4 className="font-medium text-gray-900 mb-2">Result</h4>
-                      <p className="text-gray-700">{result.result}</p>
+                    <div className="rounded-2xl border border-white/10 bg-slate-950/45 p-4">
+                      <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Result</p>
+                      <p className="mt-2 text-sm leading-7 text-slate-200">{result.result || 'Pending review'}</p>
                     </div>
                   </div>
 
-                  <div className="ml-6">
+                  <div>
                     <button
-                      className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                      onClick={() => {
-                        // Mock download functionality
-                        alert('Download functionality would be implemented here');
-                      }}
+                      type="button"
+                      onClick={() => alert('Download functionality would be implemented here')}
+                      className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-cyan-400 to-emerald-400 px-5 py-2.5 text-sm font-semibold text-slate-950 transition hover:brightness-110"
                     >
-                      <Download className="w-4 h-4" />
                       Download
                     </button>
                   </div>
                 </div>
-              </div>
+              </Panel>
             ))}
           </div>
         )}

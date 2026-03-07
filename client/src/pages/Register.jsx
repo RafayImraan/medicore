@@ -47,16 +47,16 @@ const Register = () => {
   const isFieldActive = (field, value) => focusedField === field || value.length > 0;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-charcoal-950 via-primary-900/20 to-charcoal-950 flex items-center justify-center p-6 relative overflow-hidden">
+    <div className="min-h-screen flex items-center justify-center p-6 relative overflow-hidden">
       {/* Soft background gradients for depth */}
       <div className="absolute inset-0 bg-gradient-to-br from-primary-900/10 via-transparent to-luxury-gold/5"></div>
       <div className="absolute inset-0 bg-gradient-to-tl from-charcoal-950/50 via-transparent to-primary-800/10"></div>
 
       <div className="max-w-md w-full relative z-10">
-        <div className="bg-charcoal-800/50 backdrop-blur-xl rounded-2xl p-8 shadow-2xl shadow-charcoal-950/50 border border-primary-900/30 relative overflow-hidden">
+        <div className="premium-panel backdrop-blur-xl rounded-2xl p-8 relative overflow-hidden">
           {/* Gradient border and glow */}
           <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-luxury-gold/20 via-primary-300/10 to-luxury-silver/20 p-[1px]">
-            <div className="h-full w-full bg-charcoal-800/50 backdrop-blur-xl rounded-2xl"></div>
+            <div className="h-full w-full bg-charcoal-900/70 backdrop-blur-xl rounded-2xl"></div>
           </div>
           {/* Layered shadows for floating effect */}
           <div className="absolute inset-0 rounded-2xl shadow-lg shadow-primary-900/20"></div>
@@ -103,7 +103,7 @@ const Register = () => {
                   <input
                     type="text"
                     placeholder=""
-                    className="w-full px-4 py-3 pl-12 bg-charcoal-800/50 border border-primary-800/30 rounded-xl text-white placeholder-transparent focus:border-primary-600 focus:ring-2 focus:ring-primary-600/50 focus:ring-opacity-50 transition-all duration-300 hover:shadow-lg hover:shadow-primary-900/20 focus:shadow-xl focus:shadow-primary-600/30 focus:translate-y-[-2px]"
+                    className="w-full px-4 py-3 pl-12 bg-charcoal-950/60 border border-white/10 rounded-xl text-white placeholder-transparent focus:border-accent-500/60 focus:ring-2 focus:ring-accent-500/25 focus:ring-opacity-50 transition-all duration-300 hover:shadow-lg hover:shadow-primary-900/20 focus:shadow-xl focus:shadow-primary-600/30 focus:translate-y-[-2px]"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     onFocus={() => setFocusedField('name')}
@@ -130,7 +130,7 @@ const Register = () => {
                   <input
                     type="email"
                     placeholder=""
-                    className="w-full px-4 py-3 pl-12 bg-charcoal-800/50 border border-primary-800/30 rounded-xl text-white placeholder-transparent focus:border-primary-600 focus:ring-2 focus:ring-primary-600/50 focus:ring-opacity-50 transition-all duration-300 hover:shadow-lg hover:shadow-primary-900/20 focus:shadow-xl focus:shadow-primary-600/30 focus:translate-y-[-2px]"
+                    className="w-full px-4 py-3 pl-12 bg-charcoal-950/60 border border-white/10 rounded-xl text-white placeholder-transparent focus:border-accent-500/60 focus:ring-2 focus:ring-accent-500/25 focus:ring-opacity-50 transition-all duration-300 hover:shadow-lg hover:shadow-primary-900/20 focus:shadow-xl focus:shadow-primary-600/30 focus:translate-y-[-2px]"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     onFocus={() => setFocusedField('email')}
@@ -158,7 +158,7 @@ const Register = () => {
                   <input
                     type="password"
                     placeholder=""
-                    className="w-full px-4 py-3 pl-12 bg-charcoal-800/50 border border-primary-800/30 rounded-xl text-white placeholder-transparent focus:border-primary-600 focus:ring-2 focus:ring-primary-600/50 focus:ring-opacity-50 transition-all duration-300 hover:shadow-lg hover:shadow-primary-900/20 focus:shadow-xl focus:shadow-primary-600/30 focus:translate-y-[-2px]"
+                    className="w-full px-4 py-3 pl-12 bg-charcoal-950/60 border border-white/10 rounded-xl text-white placeholder-transparent focus:border-accent-500/60 focus:ring-2 focus:ring-accent-500/25 focus:ring-opacity-50 transition-all duration-300 hover:shadow-lg hover:shadow-primary-900/20 focus:shadow-xl focus:shadow-primary-600/30 focus:translate-y-[-2px]"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     onFocus={() => setFocusedField('password')}
@@ -182,7 +182,7 @@ const Register = () => {
                 <select
                   value={role}
                   onChange={(e) => setRole(e.target.value)}
-                  className="w-full px-4 py-3 bg-charcoal-800/50 border border-primary-800/30 rounded-xl text-white focus:border-primary-600 focus:ring-2 focus:ring-primary-600/50 focus:ring-opacity-50 transition-all duration-300 hover:shadow-lg hover:shadow-primary-900/20 focus:shadow-xl focus:shadow-primary-600/30 focus:bg-gradient-to-r focus:from-primary-900/20 focus:to-primary-800/20"
+                  className="w-full px-4 py-3 bg-charcoal-950/60 border border-white/10 rounded-xl text-white focus:border-accent-500/60 focus:ring-2 focus:ring-accent-500/25 focus:ring-opacity-50 transition-all duration-300 hover:shadow-lg hover:shadow-primary-900/20 focus:shadow-xl focus:shadow-primary-600/30 focus:bg-gradient-to-r focus:from-primary-900/20 focus:to-primary-800/20"
                 >
                   <option value="patient">Patient</option>
                   <option value="doctor">Healthcare Professional</option>

@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const dotenv = require('dotenv');
 const { faker } = require('@faker-js/faker');
 const Patient = require('./models/Patient');
 const LabResult = require('./models/LabResult');
@@ -6,10 +7,12 @@ const Prescription = require('./models/Prescription');
 const Billing = require('./models/Billing');
 const Doctor = require('./models/Doctor');
 
+dotenv.config();
+
 async function seedMedicalData() {
   try {
     // Connect to MongoDB
-    await mongoose.connect('mongodb://localhost:27017/healthcare_db', {
+    await mongoose.connect(process.env.MONGODB_URI || process.env.MONGO_URI || 'mongodb://localhost:27017/healthcare_db', {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });

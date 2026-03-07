@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const { faker } = require('@faker-js/faker');
 
+require('./models/User');
 const Patient = require('./models/Patient');
 const Doctor = require('./models/Doctor');
 const LabResult = require('./models/LabResult');

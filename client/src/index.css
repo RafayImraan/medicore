@@ -34,21 +34,6 @@
 }
 
 :root {
-  color-scheme: light;
-  --color-background: #f7f3ea;
-  --color-surface: #ffffff;
-  --color-surface-2: #f1ebe0;
-  --color-foreground: #0b0f16;
-  --color-muted: #5c5f66;
-  --color-border: #e3dac8;
-  --color-ring: #0f4c3a;
-  --color-accent: #0f4c3a;
-  --color-accent-2: #d4af37;
-  --color-accent-3: #1f6f5b;
-  --color-shadow: rgba(7, 15, 25, 0.12);
-}
-
-.dark {
   color-scheme: dark;
   --color-background: #0b0f16;
   --color-surface: #121824;
@@ -64,11 +49,23 @@
 }
 
 body {
+  margin: 0;
+  min-height: 100vh;
   font-family: "Manrope", ui-sans-serif, system-ui;
   background: radial-gradient(1200px 600px at 15% -10%, rgba(212, 175, 55, 0.15), transparent 60%),
               radial-gradient(900px 500px at 85% 0%, rgba(31, 111, 91, 0.18), transparent 55%),
               var(--color-background);
   color: var(--color-foreground);
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+#root {
+  width: 100%;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -120,7 +117,7 @@ h1, h2, h3, h4, h5, h6 {
 
 .bg-gray-800,
 .bg-gray-900 {
-  background-color: var(--color-surface) !important;
+  background-color: var(--color-surface-2) !important;
 }
 
 .text-gray-400,
@@ -141,21 +138,39 @@ h1, h2, h3, h4, h5, h6 {
   border-color: var(--color-border) !important;
 }
 
-.dark .bg-gray-700,
-.dark .bg-gray-800,
-.dark .bg-gray-900 {
-  background-color: var(--color-surface) !important;
+.text-white,
+.text-slate-50,
+.text-slate-100 {
+  color: var(--color-foreground) !important;
 }
 
-.dark .text-gray-200,
-.dark .text-gray-300,
-.dark .text-gray-400 {
-  color: var(--color-muted) !important;
+.placeholder\:text-white\/45::placeholder,
+.placeholder\:text-white\/60::placeholder {
+  color: rgba(245, 241, 232, 0.55) !important;
 }
 
-.dark .border-gray-700,
-.dark .border-gray-800 {
-  border-color: var(--color-border) !important;
+select option {
+  background: #121824;
+  color: #f5f1e8;
+}
+
+.page-shell {
+  position: relative;
+  min-height: 100vh;
+  background:
+    radial-gradient(900px 480px at 8% 0%, rgba(212, 175, 55, 0.12), transparent 55%),
+    radial-gradient(700px 420px at 92% 0%, rgba(26, 113, 92, 0.16), transparent 52%),
+    linear-gradient(180deg, #08111c 0%, #0d1623 48%, #0a121d 100%);
+}
+
+.premium-panel {
+  background: linear-gradient(180deg, rgba(19, 27, 40, 0.94) 0%, rgba(15, 21, 33, 0.96) 100%);
+  border: 1px solid rgba(212, 175, 55, 0.14);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
+}
+
+.premium-copy {
+  color: rgba(245, 241, 232, 0.88);
 }
 
 @keyframes gradientShift {
