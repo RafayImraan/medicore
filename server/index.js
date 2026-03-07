@@ -54,9 +54,19 @@ const { compressionMiddleware, securityMiddleware, corsMiddleware, requestLogger
 
 const app = express();
 const server = createServer(app);
+const defaultOrigins = [
+  "http://localhost:3000",
+  "http://localhost:5173",
+  "http://localhost:5174",
+  "http://localhost:5176",
+];
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(",").map((origin) => origin.trim()).filter(Boolean)
+  : defaultOrigins;
+
 const io = new Server(server, {
   cors: {
-    origin: ["http://localhost:3000", "http://localhost:5173", "http://localhost:5174", "http://localhost:5176"],
+    origin: allowedOrigins,
     methods: ["GET", "POST"],
     credentials: true
   }
@@ -119,7 +129,7 @@ if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../client/dist')));
 
   // Catch all handler: send back React's index.html file for any non-API routes
-  app.get('*', (req, res) => {
+  app.get(/^\/(?!api).*/, (req, res) => {
     res.sendFile(path.join(__dirname, '../client/dist/index.html'));
   });
 }

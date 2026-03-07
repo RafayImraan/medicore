@@ -1,7 +1,7 @@
 [build]
-builder = "NIXPACKS"
-buildCommand = "npm install"
-startCommand = "npm start"
+builder = "DOCKERFILE"
+dockerfilePath = "server/Dockerfile"
 
 [deploy]
-rootDir = "server"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10

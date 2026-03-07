@@ -2,6 +2,7 @@
 import React, { useState, useEffect, createContext, useContext, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { io } from "socket.io-client";
+import { API_BASE_URL } from "../services/api";
 import {
   LayoutDashboard, Users, Stethoscope, Building2, Pill,
   BarChart3, Settings, Bell, Search, ChevronRight,
@@ -352,7 +353,7 @@ function GlobalProvider({ children }) {
 
   // Socket.IO connection
   useEffect(() => {
-    const socket = io('http://localhost:5000');
+    const socket = io(API_BASE_URL);
 
     socket.on('liveStatsUpdate', (data) => {
       setStats(prev => ({ ...prev, occupancy: data.beds }));

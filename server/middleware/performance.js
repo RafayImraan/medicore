@@ -3,6 +3,24 @@ const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
 const cors = require('cors');
 
+const defaultOrigins = [
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'http://localhost:5175',
+  'http://localhost:5176'
+];
+
+const getAllowedOrigins = () => {
+  if (!process.env.ALLOWED_ORIGINS) {
+    return defaultOrigins;
+  }
+
+  return process.env.ALLOWED_ORIGINS
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+};
+
 // Compression middleware
 const compressionMiddleware = compression({
   level: 6, // Compression level (1-9, 6 is good balance)
@@ -85,9 +103,7 @@ const corsMiddleware = cors({
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
 
-    const allowedOrigins = process.env.NODE_ENV === 'production'
-      ? (process.env.ALLOWED_ORIGINS?.split(',') || [])
-      : ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:5175', 'http://localhost:5176'];
+    const allowedOrigins = getAllowedOrigins();
 
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
