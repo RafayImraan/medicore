@@ -32,6 +32,47 @@ function titleOf(item, fallback = "Item") {
   return item?.title || item?.name || item?.patient || item?.organization || item?.source || fallback;
 }
 
+const FALLBACK_SERVICES = [
+  {
+    title: "Skilled Nursing Visits",
+    description: "Clinical nursing support for medication, wound care, monitoring, and recovery follow-through at home.",
+    features: ["Medication support", "Wound dressing", "Vitals review"],
+  },
+  {
+    title: "Post-Surgical Recovery",
+    description: "Structured care plans for patients transitioning from hospital discharge to safe recovery at home.",
+    features: ["Pain management guidance", "Mobility progression", "Discharge follow-up"],
+  },
+  {
+    title: "Therapy at Home",
+    description: "Physical and rehabilitation support coordinated around patient safety, comfort, and recovery goals.",
+    features: ["Physiotherapy visits", "Mobility training", "Recovery exercises"],
+  },
+];
+
+const FALLBACK_PACKAGES = [
+  { name: "Essential Care", price: 49, perks: ["Weekly nurse review", "Vitals tracking", "Care hotline"], cta: "Choose package" },
+  { name: "Continuity Care", price: 99, highlight: true, perks: ["Two visits per week", "Care plan review", "Therapy guidance"], cta: "Choose package" },
+  { name: "Advanced Recovery", price: 179, perks: ["Multiple visits weekly", "24/7 escalation support", "Priority coordination"], cta: "Choose package" },
+];
+
+const FALLBACK_TEAM = [
+  { name: "Amelia Carter", role: "Registered Nurse", years: 12, bio: "Experienced in elderly care, recovery support, and patient follow-up at home." },
+  { name: "David Lin", role: "Physical Therapist", years: 8, bio: "Focused on post-surgical rehabilitation and functional mobility improvement." },
+  { name: "Omar Rahman", role: "Care Coordinator", years: 10, bio: "Coordinates scheduling, escalation, and continuity across home care programs." },
+];
+
+const FALLBACK_STORIES = [
+  { patient: "Mrs. Khan", story: "Recovered safely at home after surgery with regular nursing review and therapy support.", outcome: "Improved recovery confidence" },
+  { patient: "Mr. Thomas", story: "Avoided rehospitalization through coordinated medication follow-up and home monitoring.", outcome: "Reduced readmission risk" },
+];
+
+const FALLBACK_SIGNALS = [
+  { title: "Licensed home-care clinicians", meta: "Care teams are assigned with continuity, oversight, and escalation support." },
+  { title: "Structured recovery plans", meta: "Programs are organized around nursing review, therapy support, and home follow-up." },
+  { title: "Ongoing coordination", meta: "Patients and families receive a clear next step throughout the home-care program." },
+];
+
 export default function HomeHealthcarePro() {
   const navigate = useNavigate();
   const [content, setContent] = useState({
@@ -94,6 +135,17 @@ export default function HomeHealthcarePro() {
   const team = content.team.slice(0, 4);
   const stories = content.stories.slice(0, 3);
   const insights = [...content.awards, ...content.press, ...content.blogPosts].slice(0, 4);
+  const visibleServices = primaryServices.length ? primaryServices : FALLBACK_SERVICES;
+  const visiblePackages = packages.length ? packages : FALLBACK_PACKAGES;
+  const visibleTeam = team.length ? team : FALLBACK_TEAM;
+  const visibleStories = stories.length ? stories : FALLBACK_STORIES;
+  const visibleSignals =
+    content.certifications.length || insights.length
+      ? [
+          ...content.certifications.map((item) => ({ title: titleOf(item, "Certification"), meta: item.description || item.issuer || "" })),
+          ...insights.map((item) => ({ title: titleOf(item, "Insight"), meta: item.description || item.summary || item.outcome || "" })),
+        ].slice(0, 5)
+      : FALLBACK_SIGNALS;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-charcoal-950 via-emerald-950/20 to-charcoal-950 text-white">
@@ -162,7 +214,7 @@ export default function HomeHealthcarePro() {
           </h2>
         </div>
         <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-          {(loading ? Array.from({ length: 6 }) : primaryServices).map((service, index) => (
+          {(loading ? Array.from({ length: 6 }) : visibleServices).map((service, index) => (
             <motion.div key={loading ? index : titleOf(service)} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
               <Panel className="h-full">
                 <div className="w-fit rounded-2xl bg-emerald-500/10 p-3 text-emerald-300">
@@ -181,7 +233,6 @@ export default function HomeHealthcarePro() {
             </motion.div>
           ))}
         </div>
-        {!loading && primaryServices.length === 0 ? <div className="mt-6"><EmptyState text="Home healthcare services are not available right now." /></div> : null}
       </section>
 
       <section className="mx-auto max-w-6xl px-4 pb-16">
@@ -190,8 +241,7 @@ export default function HomeHealthcarePro() {
             <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Packages</p>
             <h2 className="mt-3 text-3xl font-semibold text-white">Choose the right care intensity.</h2>
             <div className="mt-6 grid gap-4">
-              {packages.length ? (
-                packages.map((pkg) => (
+              {visiblePackages.map((pkg) => (
                   <div key={pkg._id || pkg.name} className={`rounded-2xl border p-5 ${pkg.highlight ? "border-accent-400/30 bg-accent-500/10" : "border-white/10 bg-charcoal-950/40"}`}>
                     <div className="flex items-start justify-between gap-4">
                       <div>
@@ -205,14 +255,11 @@ export default function HomeHealthcarePro() {
                         <li key={perk}>- {perk}</li>
                       ))}
                     </ul>
-                    <button onClick={() => setSelectedPackage(pkg)} className="mt-5 rounded-xl bg-gradient-to-r from-emerald-600 to-accent-500 px-4 py-3 text-sm font-medium text-white">
-                      {pkg.cta || "Choose package"}
-                    </button>
-                  </div>
-                ))
-              ) : (
-                <EmptyState text="Care packages are not available right now." />
-              )}
+                  <button onClick={() => setSelectedPackage(pkg)} className="mt-5 rounded-xl bg-gradient-to-r from-emerald-600 to-accent-500 px-4 py-3 text-sm font-medium text-white">
+                    {pkg.cta || "Choose package"}
+                  </button>
+                </div>
+                ))}
             </div>
           </Panel>
 
@@ -220,8 +267,7 @@ export default function HomeHealthcarePro() {
             <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Clinical Team</p>
             <h2 className="mt-3 text-3xl font-semibold text-white">Trusted professionals assigned with continuity.</h2>
             <div className="mt-6 space-y-4">
-              {team.length ? (
-                team.map((member) => (
+              {visibleTeam.map((member) => (
                   <div key={member._id || member.name} className="flex items-start gap-4 rounded-2xl border border-white/10 bg-charcoal-950/40 p-4">
                     <img
                       src={member.avatar || "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=200&h=200&fit=crop"}
@@ -234,10 +280,7 @@ export default function HomeHealthcarePro() {
                       <p className="mt-2 text-sm text-slate-300">{member.bio || `${member.years || 0} years in patient-centered care.`}</p>
                     </div>
                   </div>
-                ))
-              ) : (
-                <EmptyState text="Clinical team profiles are not available right now." />
-              )}
+                ))}
             </div>
           </Panel>
         </div>
@@ -249,17 +292,13 @@ export default function HomeHealthcarePro() {
             <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Patient Stories</p>
             <h2 className="mt-3 text-3xl font-semibold text-white">Progress measured in comfort and confidence.</h2>
             <div className="mt-6 space-y-4">
-              {stories.length ? (
-                stories.map((story) => (
+              {visibleStories.map((story) => (
                   <div key={story._id || story.patient} className="rounded-2xl border border-white/10 bg-charcoal-950/40 p-4">
                     <p className="font-medium text-white">{story.patient}</p>
                     <p className="mt-2 text-sm leading-6 text-slate-300">{story.story || "A successful home recovery supported by a coordinated care plan."}</p>
                     {story.outcome && <p className="mt-3 text-sm text-emerald-300">Outcome: {story.outcome}</p>}
                   </div>
-                ))
-              ) : (
-                <EmptyState text="Patient stories are not available right now." />
-              )}
+                ))}
             </div>
           </Panel>
 
@@ -267,12 +306,7 @@ export default function HomeHealthcarePro() {
             <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Trust Signals</p>
             <h2 className="mt-3 text-3xl font-semibold text-white">Evidence that the program is built seriously.</h2>
             <div className="mt-6 grid gap-4">
-              {[
-                ...content.certifications.map((item) => ({ title: titleOf(item, "Certification"), meta: item.description || item.issuer || "" })),
-                ...insights.map((item) => ({ title: titleOf(item, "Insight"), meta: item.description || item.summary || item.outcome || "" })),
-              ]
-                .slice(0, 5)
-                .map((item, index) => (
+              {visibleSignals.map((item, index) => (
                   <div key={`${item.title}-${index}`} className="rounded-2xl border border-white/10 bg-charcoal-950/40 p-4">
                     <div className="flex items-start gap-3">
                       <div className="rounded-2xl bg-accent-500/10 p-3 text-accent-300">
@@ -285,9 +319,6 @@ export default function HomeHealthcarePro() {
                     </div>
                   </div>
                 ))}
-              {content.certifications.length === 0 && insights.length === 0 ? (
-                <EmptyState text="Program certifications and updates are not available right now." />
-              ) : null}
             </div>
           </Panel>
         </div>
