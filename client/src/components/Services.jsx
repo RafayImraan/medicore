@@ -68,13 +68,13 @@ export default function Services() {
           <div>
             <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-300">
               <Sparkles className="h-4 w-4 text-accent-300" />
-              Premium service catalog
+              Medicore clinical services
             </div>
             <h1 className="mt-6 font-['Playfair_Display'] text-5xl font-bold tracking-tight text-white md:text-6xl">
-              Services designed as full care experiences.
+              Hospital services organized for access, diagnosis, and treatment.
             </h1>
             <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-300">
-              From urgent diagnostics to scheduled specialist care, every Medicore service is structured for clarity, speed, and confidence.
+              From urgent diagnostics to specialist consultation and follow-up care, Medicore services are structured for clear access and coordinated treatment.
             </p>
           </div>
 

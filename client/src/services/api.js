@@ -69,6 +69,14 @@ export const adminAPI = {
   // Get system notifications
   getNotifications: () => apiRequest('/api/admin/notifications'),
 
+  // Homepage content management
+  getHomeContent: () => apiRequest('/api/admin/home-content'),
+  updateHomeContent: (content) =>
+    apiRequest('/api/admin/home-content', {
+      method: 'PUT',
+      body: JSON.stringify(content),
+    }),
+
   // Get system health status
   getSystemHealth: () => apiRequest('/api/health'),
 

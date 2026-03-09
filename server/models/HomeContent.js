@@ -1,11 +1,102 @@
 const mongoose = require('mongoose');
 
 const homeContentSchema = new mongoose.Schema({
+  hero: {
+    badge: String,
+    title: String,
+    subtitle: String,
+    searchPlaceholder: String,
+    primaryActionLabel: String,
+    primaryActionHref: String,
+    secondaryActionLabel: String,
+    secondaryActionHref: String
+  },
+  heroMedia: {
+    eyebrow: String,
+    title: String,
+    description: String,
+    image: String,
+    videoUrl: String,
+    poster: String,
+    ambientLabel: String,
+    metrics: [{
+      id: String,
+      label: String,
+      value: String
+    }]
+  },
+  heroVariants: [{
+    id: String,
+    role: String,
+    keywords: [String],
+    badge: String,
+    title: String,
+    subtitle: String,
+    primaryActionLabel: String,
+    primaryActionHref: String,
+    secondaryActionLabel: String,
+    secondaryActionHref: String,
+    priority: Number,
+    enabled: { type: Boolean, default: true }
+  }],
+  trustSignals: [{
+    id: String,
+    label: String,
+    value: String,
+    context: String,
+    enabled: { type: Boolean, default: true }
+  }],
+  intentPaths: [{
+    id: String,
+    title: String,
+    description: String,
+    href: String,
+    metric: String,
+    icon: String,
+    enabled: { type: Boolean, default: true }
+  }],
+  audiencePaths: [{
+    id: String,
+    role: String,
+    eyebrow: String,
+    title: String,
+    description: String,
+    href: String,
+    cta: String,
+    enabled: { type: Boolean, default: true }
+  }],
+  symptomRouter: [{
+    id: String,
+    label: String,
+    keywords: [String],
+    title: String,
+    description: String,
+    href: String,
+    urgency: String,
+    department: String
+  }],
+  quickActions: [{
+    id: String,
+    label: String,
+    description: String,
+    href: String,
+    icon: String,
+    accent: String,
+    enabled: { type: Boolean, default: true }
+  }],
+  operationalHighlights: [{
+    id: String,
+    title: String,
+    value: String,
+    detail: String,
+    tone: String
+  }],
   services: [{
     title: String,
     description: String,
     icon: String,
-    features: [String]
+    features: [String],
+    enabled: { type: Boolean, default: true }
   }],
   articles: [{
     id: String,
@@ -74,6 +165,50 @@ const homeContentSchema = new mongoose.Schema({
     status: String,
     participants: Number,
     target: Number
+  }],
+  carePaths: [{
+    id: String,
+    title: String,
+    description: String,
+    duration: String,
+    outcome: String,
+    href: String
+  }],
+  patientJourney: [{
+    id: String,
+    step: String,
+    title: String,
+    description: String,
+    sla: String
+  }],
+  featuredCampaigns: [{
+    id: String,
+    eyebrow: String,
+    title: String,
+    description: String,
+    metric: String,
+    href: String,
+    enabled: { type: Boolean, default: true }
+  }],
+  recommendationCards: [{
+    id: String,
+    audience: String,
+    title: String,
+    description: String,
+    href: String,
+    metric: String,
+    tag: String,
+    keywords: [String],
+    scoreBoost: { type: Number, default: 0 },
+    enabled: { type: Boolean, default: true }
+  }],
+  urgentActions: [{
+    id: String,
+    title: String,
+    description: String,
+    href: String,
+    tone: String,
+    enabled: { type: Boolean, default: true }
   }],
   emergencyServices: [{
     id: String,
@@ -144,7 +279,16 @@ const homeContentSchema = new mongoose.Schema({
     name: String,
     role: String,
     department: String
-  }]
+  }],
+  ctaBanner: {
+    eyebrow: String,
+    title: String,
+    description: String,
+    primaryActionLabel: String,
+    primaryActionHref: String,
+    secondaryActionLabel: String,
+    secondaryActionHref: String
+  }
 }, { timestamps: true });
 
 module.exports = mongoose.model('HomeContent', homeContentSchema);

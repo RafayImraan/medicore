@@ -110,7 +110,7 @@ const Login = () => {
             >
               WELCOME BACK
             </motion.h2>
-            <p className="text-muted-400 mt-2 font-medium tracking-wide">Sign in to your premium healthcare account</p>
+            <p className="text-muted-400 mt-2 font-medium tracking-wide">Sign in to your Medicore hospital management account</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-6 relative z-10">

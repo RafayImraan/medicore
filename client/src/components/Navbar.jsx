@@ -82,8 +82,8 @@ const Navbar = () => {
             <span className="text-xl font-bold bg-gradient-to-r from-luxury-gold via-primary-300 to-luxury-silver bg-clip-text text-transparent tracking-wider">
               MEDICORE
             </span>
-            <div className="text-xs text-muted-400 font-medium tracking-[0.32em]">
-              PREMIUM HEALTHCARE
+            <div className="text-xs text-muted-400 font-medium tracking-[0.22em]">
+              HOSPITAL MANAGEMENT SYSTEM
             </div>
           </div>
         </Link>

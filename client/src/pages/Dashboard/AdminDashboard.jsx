@@ -4,6 +4,9 @@ import {
   Bell,
   ClipboardList,
   Database,
+  GripVertical,
+  ArrowUp,
+  ArrowDown,
   RefreshCw,
   Server,
   Shield,
@@ -12,7 +15,7 @@ import {
   Users,
 } from 'lucide-react';
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { apiRequest } from '../../services/api';
+import { adminAPI, apiRequest } from '../../services/api';
 
 const fallbackKpis = {
   appointmentsToday: 148,
@@ -43,10 +46,139 @@ const tooltipStyle = {
 
 const formatCurrency = (value) => `Rs. ${Number(value || 0).toLocaleString()}`;
 
+const moveItem = (list, index, direction) => {
+  const nextIndex = index + direction;
+  if (nextIndex < 0 || nextIndex >= list.length) return list;
+  const clone = [...list];
+  [clone[index], clone[nextIndex]] = [clone[nextIndex], clone[index]];
+  return clone;
+};
+
+const HomepageCmsPanel = ({ content, onChange, onSave, saving }) => {
+  const hero = content?.hero || {};
+  const intentPaths = Array.isArray(content?.intentPaths) ? content.intentPaths : [];
+  const quickActions = Array.isArray(content?.quickActions) ? content.quickActions : [];
+  const campaigns = Array.isArray(content?.featuredCampaigns) ? content.featuredCampaigns : [];
+
+  const updateArrayItem = (key, index, patch) => {
+    const current = Array.isArray(content?.[key]) ? content[key] : [];
+    onChange({
+      ...content,
+      [key]: current.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item)),
+    });
+  };
+
+  const reorderArray = (key, index, direction) => {
+    const current = Array.isArray(content?.[key]) ? content[key] : [];
+    onChange({ ...content, [key]: moveItem(current, index, direction) });
+  };
+
+  return (
+    <Panel className="space-y-6">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Homepage CMS</p>
+          <h2 className="mt-2 text-2xl font-semibold text-white">Manage flagship homepage content</h2>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
+            Edit the headline and control order and visibility for the homepage’s high-impact modules without reseeding.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onSave}
+          disabled={saving}
+          className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-cyan-400 to-emerald-400 px-5 py-2.5 text-sm font-semibold text-slate-950 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <RefreshCw className={`h-4 w-4 ${saving ? 'animate-spin' : ''}`} />
+          Save homepage changes
+        </button>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+        <div className="rounded-2xl border border-white/10 bg-slate-950/45 p-5">
+          <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Hero copy</p>
+          <div className="mt-4 space-y-4">
+            <label className="block text-sm">
+              <span className="mb-2 block text-slate-300">Headline</span>
+              <textarea
+                value={hero.title || ''}
+                onChange={(event) => onChange({ ...content, hero: { ...hero, title: event.target.value } })}
+                className="min-h-28 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none"
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="mb-2 block text-slate-300">Subheadline</span>
+              <textarea
+                value={hero.subtitle || ''}
+                onChange={(event) => onChange({ ...content, hero: { ...hero, subtitle: event.target.value } })}
+                className="min-h-28 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none"
+              />
+            </label>
+          </div>
+        </div>
+
+        <div className="grid gap-6">
+          {[
+            ['intentPaths', 'Intent paths', intentPaths, 'title'],
+            ['quickActions', 'Quick actions', quickActions, 'label'],
+            ['featuredCampaigns', 'Featured campaigns', campaigns, 'title'],
+          ].map(([key, title, items, labelKey]) => (
+            <div key={key} className="rounded-2xl border border-white/10 bg-slate-950/45 p-5">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.18em] text-slate-500">{title}</p>
+                  <p className="mt-1 text-sm text-slate-300">Toggle visibility and change display order.</p>
+                </div>
+                <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-300">{items.length} items</span>
+              </div>
+              <div className="mt-4 space-y-3">
+                {items.map((item, index) => (
+                  <div key={item.id || `${key}-${index}`} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                    <GripVertical className="h-4 w-4 text-slate-500" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium text-white">{item[labelKey]}</p>
+                      <p className="truncate text-xs text-slate-500">{item.href || item.metric || item.description}</p>
+                    </div>
+                    <label className="flex items-center gap-2 text-xs text-slate-300">
+                      <input
+                        type="checkbox"
+                        checked={item.enabled !== false}
+                        onChange={(event) => updateArrayItem(key, index, { enabled: event.target.checked })}
+                        className="h-4 w-4 rounded border-white/20 bg-slate-950/50"
+                      />
+                      Visible
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => reorderArray(key, index, -1)}
+                      className="rounded-xl border border-white/10 p-2 text-slate-300 transition hover:bg-white/10"
+                    >
+                      <ArrowUp className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => reorderArray(key, index, 1)}
+                      className="rounded-xl border border-white/10 p-2 text-slate-300 transition hover:bg-white/10"
+                    >
+                      <ArrowDown className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </Panel>
+  );
+};
+
 const AdminDashboard = () => {
   const [dashboard, setDashboard] = useState(null);
+  const [homeContent, setHomeContent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [savingHome, setSavingHome] = useState(false);
   const [error, setError] = useState('');
 
   const loadDashboard = async (isRefresh = false) => {
@@ -54,8 +186,12 @@ const AdminDashboard = () => {
       if (isRefresh) setRefreshing(true);
       else setLoading(true);
       setError('');
-      const response = await apiRequest('/api/admin/dashboard');
+      const [response, homeResponse] = await Promise.all([
+        apiRequest('/api/admin/dashboard'),
+        adminAPI.getHomeContent(),
+      ]);
       setDashboard(response || {});
+      setHomeContent(homeResponse || {});
     } catch (err) {
       console.error('Failed to load admin dashboard:', err);
       setError('Failed to load live admin dashboard data. Showing fallback operational summary.');
@@ -63,6 +199,19 @@ const AdminDashboard = () => {
     } finally {
       setLoading(false);
       setRefreshing(false);
+    }
+  };
+
+  const handleSaveHomeContent = async () => {
+    try {
+      setSavingHome(true);
+      const updated = await adminAPI.updateHomeContent(homeContent);
+      setHomeContent(updated || {});
+    } catch (err) {
+      console.error('Failed to update homepage content:', err);
+      setError('Failed to save homepage content changes.');
+    } finally {
+      setSavingHome(false);
     }
   };
 
@@ -273,6 +422,13 @@ const AdminDashboard = () => {
             </div>
           </Panel>
         </section>
+
+        <HomepageCmsPanel
+          content={homeContent}
+          onChange={setHomeContent}
+          onSave={handleSaveHomeContent}
+          saving={savingHome}
+        />
 
         <Panel>
           <div className="flex items-center gap-3">

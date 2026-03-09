@@ -154,7 +154,7 @@ export default function Departments() {
           <div>
             <p className="text-xs uppercase tracking-[0.25em] text-slate-500">Departments</p>
             <h1 className="mt-3 font-['Playfair_Display'] text-5xl font-bold tracking-tight text-white md:text-6xl">
-              Hospital departments with visible capacity and premium booking paths.
+              Hospital departments with visible capacity, specialist coverage, and direct booking access.
             </h1>
             <p className="mt-4 max-w-2xl text-lg leading-8 text-slate-300">
               Explore specialty units, compare wait times, and move directly into booking without losing context.
@@ -276,7 +276,7 @@ export default function Departments() {
 
         <section className="mt-12 grid gap-6 lg:grid-cols-[1fr_1fr]">
           <Panel>
-            <SectionTitle eyebrow="Announcements" title="Operational updates" subtitle="Short updates relevant to admissions, premium access, and specialist availability." />
+            <SectionTitle eyebrow="Announcements" title="Operational updates" subtitle="Short updates relevant to admissions, specialist availability, and department operations." />
             <div className="space-y-3">
               {announcements.slice(0, 4).map((item) => (
                 <div key={item._id || item.title} className="rounded-xl border border-white/10 bg-charcoal-950/40 p-4">
@@ -307,7 +307,7 @@ export default function Departments() {
 
         <section className="mt-12 grid gap-6 lg:grid-cols-[1fr_1fr]">
           <Panel>
-            <SectionTitle eyebrow="Insurers" title="Accepted premium plans" subtitle="Review network support before moving into consultation or diagnostics." />
+            <SectionTitle eyebrow="Insurers" title="Accepted insurance plans" subtitle="Review network support before moving into consultation, diagnostics, or admission." />
             <div className="space-y-3">
               {insurers.slice(0, 4).map((item) => (
                 <div key={item._id || item.name} className="rounded-xl border border-white/10 bg-charcoal-950/40 p-4">

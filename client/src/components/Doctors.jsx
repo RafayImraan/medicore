@@ -308,9 +308,9 @@ export default function DoctorsPro() {
     <div className={`${highContrast ? "contrast-more" : ""} min-h-screen bg-gradient-to-br from-charcoal-950 via-primary-900/20 to-charcoal-950 px-4 py-8 text-white md:px-8`}>
       <header className="mx-auto flex max-w-6xl flex-col gap-6 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-4xl font-bold tracking-tight text-white">Our Doctors</h1>
+          <h1 className="text-4xl font-bold tracking-tight text-white">Medicore Medical Specialists</h1>
           <p className="mt-2 max-w-2xl text-base leading-7 text-slate-300">
-            Find the right specialist, compare expertise, and secure appointments with a premium booking experience.
+            Find the right specialist, compare expertise, and schedule consultations through the Medicore hospital management system.
           </p>
         </div>
 

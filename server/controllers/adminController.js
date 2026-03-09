@@ -10,6 +10,7 @@ const Report = require('../models/Report');
 const ActivityLog = require('../models/ActivityLog');
 const Feedback = require('../models/Feedback');
 const Settings = require('../models/Settings');
+const HomeContent = require('../models/HomeContent');
 
 // Get dashboard statistics
 exports.getDashboardStats = async (req, res) => {
@@ -258,6 +259,74 @@ exports.getAllUsers = async (req, res) => {
   } catch (error) {
     console.error('Get all users error:', error);
     res.status(500).json({ error: 'Failed to fetch users' });
+  }
+};
+
+exports.getHomeContentAdmin = async (req, res) => {
+  try {
+    const content = await HomeContent.findOne().sort({ createdAt: -1 }).lean();
+    res.json(content || {});
+  } catch (error) {
+    console.error('Get home content admin error:', error);
+    res.status(500).json({ error: 'Failed to fetch home content' });
+  }
+};
+
+exports.updateHomeContentAdmin = async (req, res) => {
+  try {
+    const allowedKeys = [
+      'hero',
+      'heroMedia',
+      'heroVariants',
+      'trustSignals',
+      'intentPaths',
+      'audiencePaths',
+      'symptomRouter',
+      'quickActions',
+      'operationalHighlights',
+      'services',
+      'articles',
+      'testimonials',
+      'insuranceProviders',
+      'wellnessPrograms',
+      'challenges',
+      'leaderboard',
+      'researchStudies',
+      'carePaths',
+      'patientJourney',
+      'featuredCampaigns',
+      'recommendationCards',
+      'urgentActions',
+      'emergencyServices',
+      'liveStats',
+      'insights',
+      'patients',
+      'appointments',
+      'labResults',
+      'medications',
+      'equipment',
+      'rooms',
+      'staff',
+      'ctaBanner'
+    ];
+
+    const payload = {};
+    allowedKeys.forEach((key) => {
+      if (Object.prototype.hasOwnProperty.call(req.body, key)) {
+        payload[key] = req.body[key];
+      }
+    });
+
+    const updated = await HomeContent.findOneAndUpdate(
+      {},
+      { $set: payload },
+      { new: true, upsert: true, sort: { createdAt: -1 } }
+    ).lean();
+
+    res.json(updated || {});
+  } catch (error) {
+    console.error('Update home content admin error:', error);
+    res.status(500).json({ error: 'Failed to update home content' });
   }
 };
 

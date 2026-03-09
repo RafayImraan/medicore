@@ -25,6 +25,10 @@ router.put('/notifications/:id/read', notificationController.markAsRead);
 // Revenue analytics
 router.get('/analytics/revenue', adminController.getRevenueAnalytics);
 
+// Homepage content management
+router.get('/home-content', adminController.getHomeContentAdmin);
+router.put('/home-content', adminController.updateHomeContentAdmin);
+
 // ==================== INCIDENT MANAGEMENT ====================
 router.get('/incidents', adminController.getIncidents);
 router.get('/incidents/:id', adminController.getIncidentById);

@@ -2,14 +2,16 @@ const EmergencyHospital = require('../models/EmergencyHospital');
 const EmergencyIncident = require('../models/EmergencyIncident');
 const EmergencyMetric = require('../models/EmergencyMetric');
 const EmergencyChecklist = require('../models/EmergencyChecklist');
+const HomeContent = require('../models/HomeContent');
 
 const getEmergencyData = async (req, res) => {
   try {
-    const [hospitals, incidents, metrics, checklists] = await Promise.all([
+    const [hospitals, incidents, metrics, checklists, homeContent] = await Promise.all([
       EmergencyHospital.find().sort({ distanceKm: 1 }).lean(),
       EmergencyIncident.find().sort({ occurredAt: -1 }).limit(8).lean(),
       EmergencyMetric.find().sort({ createdAt: -1 }).limit(1).lean(),
-      EmergencyChecklist.find().lean()
+      EmergencyChecklist.find().lean(),
+      HomeContent.findOne().sort({ createdAt: -1 }).lean()
     ]);
 
     const metric = metrics[0] || {};
@@ -25,7 +27,8 @@ const getEmergencyData = async (req, res) => {
         isolation: metric.isolation || 0,
         workloadTrend: metric.workloadTrend || []
       },
-      checklists
+      checklists,
+      emergencyServices: homeContent?.emergencyServices || []
     });
   } catch (error) {
     console.error('Error fetching emergency data:', error);

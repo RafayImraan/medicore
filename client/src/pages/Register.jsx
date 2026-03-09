@@ -75,7 +75,7 @@ const Register = () => {
                 </div>
               </h2>
               <p className="text-muted-400 mt-2 font-medium tracking-wide">
-                Join our premium healthcare platform
+                Create your Medicore hospital management account
               </p>
             </div>
 

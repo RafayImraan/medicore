@@ -2,11 +2,9 @@ import React, { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import {
-  Activity,
   ArrowRight,
   CalendarDays,
   CheckCircle2,
-  Clock3,
   Globe,
   HeartPulse,
   Home,
@@ -20,6 +18,14 @@ import { apiRequest } from "../services/api";
 
 function Panel({ children, className = "" }) {
   return <div className={`premium-panel rounded-2xl p-6 ${className}`}>{children}</div>;
+}
+
+function EmptyState({ text, className = "" }) {
+  return (
+    <div className={`rounded-2xl border border-dashed border-white/10 bg-charcoal-950/40 p-5 text-sm text-slate-400 ${className}`}>
+      {text}
+    </div>
+  );
 }
 
 function titleOf(item, fallback = "Item") {
@@ -98,13 +104,13 @@ export default function HomeHealthcarePro() {
             <div>
               <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-300">
                 <Sparkles className="h-4 w-4 text-accent-300" />
-                Home healthcare concierge
+                Medicore home healthcare
               </div>
               <h1 className="mt-6 font-['Playfair_Display'] text-5xl font-bold tracking-tight text-white md:text-7xl">
-                Premium clinical care, delivered where patients recover best.
+                Home healthcare services connected to the Medicore hospital system.
               </h1>
               <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-300">
-                Skilled nursing, therapy, chronic care support, and recovery programs coordinated through one modern home-healthcare service.
+                Skilled nursing, therapy, chronic care support, and recovery programs coordinated through one connected home-healthcare service.
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
                 <button
@@ -126,7 +132,7 @@ export default function HomeHealthcarePro() {
               <div className="grid gap-4 sm:grid-cols-2">
                 {stats.map((stat) => (
                   <div key={stat.label} className="rounded-xl border border-white/10 bg-charcoal-950/40 p-4">
-                    <div className="rounded-2xl bg-emerald-500/10 p-3 text-emerald-300 w-fit">
+                    <div className="w-fit rounded-2xl bg-emerald-500/10 p-3 text-emerald-300">
                       <stat.icon className="h-5 w-5" />
                     </div>
                     <p className="mt-4 text-3xl font-semibold text-white">{stat.value}</p>
@@ -159,7 +165,7 @@ export default function HomeHealthcarePro() {
           {(loading ? Array.from({ length: 6 }) : primaryServices).map((service, index) => (
             <motion.div key={loading ? index : titleOf(service)} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
               <Panel className="h-full">
-                <div className="rounded-2xl bg-emerald-500/10 p-3 text-emerald-300 w-fit">
+                <div className="w-fit rounded-2xl bg-emerald-500/10 p-3 text-emerald-300">
                   <Home className="h-5 w-5" />
                 </div>
                 <h3 className="mt-5 text-2xl font-semibold text-white">{loading ? "Loading..." : titleOf(service, "Home care service")}</h3>
@@ -168,13 +174,14 @@ export default function HomeHealthcarePro() {
                   {loading
                     ? null
                     : (service.features || []).slice(0, 3).map((feature) => (
-                        <li key={feature}>• {feature}</li>
+                        <li key={feature}>- {feature}</li>
                       ))}
                 </ul>
               </Panel>
             </motion.div>
           ))}
         </div>
+        {!loading && primaryServices.length === 0 ? <div className="mt-6"><EmptyState text="Home healthcare services are not available right now." /></div> : null}
       </section>
 
       <section className="mx-auto max-w-6xl px-4 pb-16">
@@ -183,25 +190,29 @@ export default function HomeHealthcarePro() {
             <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Packages</p>
             <h2 className="mt-3 text-3xl font-semibold text-white">Choose the right care intensity.</h2>
             <div className="mt-6 grid gap-4">
-              {packages.map((pkg) => (
-                <div key={pkg._id || pkg.name} className={`rounded-2xl border p-5 ${pkg.highlight ? "border-accent-400/30 bg-accent-500/10" : "border-white/10 bg-charcoal-950/40"}`}>
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-xl font-semibold text-white">{pkg.name}</p>
-                      <p className="mt-2 text-sm text-slate-400">${pkg.price} / week</p>
+              {packages.length ? (
+                packages.map((pkg) => (
+                  <div key={pkg._id || pkg.name} className={`rounded-2xl border p-5 ${pkg.highlight ? "border-accent-400/30 bg-accent-500/10" : "border-white/10 bg-charcoal-950/40"}`}>
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-xl font-semibold text-white">{pkg.name}</p>
+                        <p className="mt-2 text-sm text-slate-400">${pkg.price} / week</p>
+                      </div>
+                      {pkg.highlight && <span className="rounded-full bg-accent-500 px-3 py-1 text-xs font-medium text-charcoal-950">Recommended</span>}
                     </div>
-                    {pkg.highlight && <span className="rounded-full bg-accent-500 px-3 py-1 text-xs font-medium text-charcoal-950">Recommended</span>}
+                    <ul className="mt-4 space-y-2 text-sm text-slate-300">
+                      {(pkg.perks || []).slice(0, 4).map((perk) => (
+                        <li key={perk}>- {perk}</li>
+                      ))}
+                    </ul>
+                    <button onClick={() => setSelectedPackage(pkg)} className="mt-5 rounded-xl bg-gradient-to-r from-emerald-600 to-accent-500 px-4 py-3 text-sm font-medium text-white">
+                      {pkg.cta || "Choose package"}
+                    </button>
                   </div>
-                  <ul className="mt-4 space-y-2 text-sm text-slate-300">
-                    {(pkg.perks || []).slice(0, 4).map((perk) => (
-                      <li key={perk}>• {perk}</li>
-                    ))}
-                  </ul>
-                  <button onClick={() => setSelectedPackage(pkg)} className="mt-5 rounded-xl bg-gradient-to-r from-emerald-600 to-accent-500 px-4 py-3 text-sm font-medium text-white">
-                    {pkg.cta || "Choose package"}
-                  </button>
-                </div>
-              ))}
+                ))
+              ) : (
+                <EmptyState text="Care packages are not available right now." />
+              )}
             </div>
           </Panel>
 
@@ -209,20 +220,24 @@ export default function HomeHealthcarePro() {
             <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Clinical Team</p>
             <h2 className="mt-3 text-3xl font-semibold text-white">Trusted professionals assigned with continuity.</h2>
             <div className="mt-6 space-y-4">
-              {team.map((member) => (
-                <div key={member._id || member.name} className="flex items-start gap-4 rounded-2xl border border-white/10 bg-charcoal-950/40 p-4">
-                  <img
-                    src={member.avatar || "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=200&h=200&fit=crop"}
-                    alt={member.name}
-                    className="h-16 w-16 rounded-2xl object-cover"
-                  />
-                  <div>
-                    <p className="font-medium text-white">{member.name}</p>
-                    <p className="mt-1 text-sm text-slate-400">{member.role || member.specialty}</p>
-                    <p className="mt-2 text-sm text-slate-300">{member.bio || `${member.years || 0} years in patient-centered care.`}</p>
+              {team.length ? (
+                team.map((member) => (
+                  <div key={member._id || member.name} className="flex items-start gap-4 rounded-2xl border border-white/10 bg-charcoal-950/40 p-4">
+                    <img
+                      src={member.avatar || "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=200&h=200&fit=crop"}
+                      alt={member.name}
+                      className="h-16 w-16 rounded-2xl object-cover"
+                    />
+                    <div>
+                      <p className="font-medium text-white">{member.name}</p>
+                      <p className="mt-1 text-sm text-slate-400">{member.role || member.specialty}</p>
+                      <p className="mt-2 text-sm text-slate-300">{member.bio || `${member.years || 0} years in patient-centered care.`}</p>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))
+              ) : (
+                <EmptyState text="Clinical team profiles are not available right now." />
+              )}
             </div>
           </Panel>
         </div>
@@ -234,13 +249,17 @@ export default function HomeHealthcarePro() {
             <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Patient Stories</p>
             <h2 className="mt-3 text-3xl font-semibold text-white">Progress measured in comfort and confidence.</h2>
             <div className="mt-6 space-y-4">
-              {stories.map((story) => (
-                <div key={story._id || story.patient} className="rounded-2xl border border-white/10 bg-charcoal-950/40 p-4">
-                  <p className="font-medium text-white">{story.patient}</p>
-                  <p className="mt-2 text-sm leading-6 text-slate-300">{story.story || "A successful home recovery supported by a coordinated care plan."}</p>
-                  {story.outcome && <p className="mt-3 text-sm text-emerald-300">Outcome: {story.outcome}</p>}
-                </div>
-              ))}
+              {stories.length ? (
+                stories.map((story) => (
+                  <div key={story._id || story.patient} className="rounded-2xl border border-white/10 bg-charcoal-950/40 p-4">
+                    <p className="font-medium text-white">{story.patient}</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-300">{story.story || "A successful home recovery supported by a coordinated care plan."}</p>
+                    {story.outcome && <p className="mt-3 text-sm text-emerald-300">Outcome: {story.outcome}</p>}
+                  </div>
+                ))
+              ) : (
+                <EmptyState text="Patient stories are not available right now." />
+              )}
             </div>
           </Panel>
 
@@ -266,6 +285,9 @@ export default function HomeHealthcarePro() {
                     </div>
                   </div>
                 ))}
+              {content.certifications.length === 0 && insights.length === 0 ? (
+                <EmptyState text="Program certifications and updates are not available right now." />
+              ) : null}
             </div>
           </Panel>
         </div>
@@ -304,7 +326,7 @@ export default function HomeHealthcarePro() {
               <p className="mt-4 text-sm text-slate-300">${selectedPackage.price} / week</p>
               <ul className="mt-6 space-y-2 text-sm text-slate-300">
                 {(selectedPackage.perks || []).map((perk) => (
-                  <li key={perk}>• {perk}</li>
+                  <li key={perk}>- {perk}</li>
                 ))}
               </ul>
               <div className="mt-8 flex justify-end gap-2 border-t border-white/10 pt-4">

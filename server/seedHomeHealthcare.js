@@ -72,7 +72,7 @@ const STORIES = [
 
 const connect = async () => {
   const uri = process.env.MONGODB_URI || process.env.MONGO_URI || 'mongodb://localhost:27017/healthcare_db';
-  await mongoose.connect(uri, { useNewUrlParser: true, useUnifiedTopology: true });
+  await mongoose.connect(uri);
 };
 
 const seed = async () => {
@@ -101,13 +101,21 @@ const seed = async () => {
   if ((await HomeHealthcareStory.countDocuments()) === 0) await HomeHealthcareStory.insertMany(STORIES);
 };
 
-connect()
-  .then(seed)
-  .then(() => {
-    console.log('OK: Home healthcare seed completed');
-    process.exit(0);
-  })
-  .catch((error) => {
+const run = async () => {
+  await connect();
+  await seed();
+  await mongoose.disconnect();
+  console.log('OK: Home healthcare seed completed');
+};
+
+if (require.main === module) {
+  run().catch(async (error) => {
     console.error('ERROR: Home healthcare seed failed:', error);
+    try {
+      await mongoose.disconnect();
+    } catch {}
     process.exit(1);
   });
+}
+
+module.exports = { connect, seed, run };

@@ -48,6 +48,7 @@ function IncidentForm({ onSubmit }) {
 export default function EmergencyPro() {
   const [highContrast, setHighContrast] = useState(false);
   const [erQueue, setErQueue] = useState({ waiting: 0, avgWaitMins: 0 });
+  const [emergencyServices, setEmergencyServices] = useState([]);
   const [hospitals, setHospitals] = useState([]);
   const [incidents, setIncidents] = useState([]);
   const [workTrend, setWorkTrend] = useState([]);
@@ -67,6 +68,7 @@ export default function EmergencyPro() {
         const data = await apiRequest("/api/public/emergency");
         if (!alive) return;
         const metricsData = data.metrics || {};
+        setEmergencyServices(Array.isArray(data.emergencyServices) ? data.emergencyServices : []);
         setHospitals(Array.isArray(data.hospitals) ? data.hospitals : []);
         setIncidents(Array.isArray(data.incidents) ? data.incidents.map((item) => ({
           id: item._id || item.id || String(Math.random()),
@@ -162,6 +164,22 @@ export default function EmergencyPro() {
       </header>
 
       <main className="mx-auto max-w-6xl space-y-6 px-4 py-8">
+        <div className="grid gap-4 lg:grid-cols-3">
+          {emergencyServices.length ? (
+            emergencyServices.map((service) => (
+              <SectionCard key={service.id} className="border border-red-500/15 bg-[linear-gradient(160deg,rgba(127,29,29,0.16),rgba(8,15,28,0.96))]">
+                <p className="text-xs uppercase tracking-[0.22em] text-red-200/70">{service.name}</p>
+                <p className="mt-3 text-2xl font-semibold text-white">{service.number}</p>
+                <p className="mt-2 text-sm text-slate-300">{service.responseTime}</p>
+              </SectionCard>
+            ))
+          ) : (
+            <SectionCard className="lg:col-span-3 border border-dashed border-white/10 bg-charcoal-950/40 text-sm text-slate-400">
+              Emergency contact services are being updated.
+            </SectionCard>
+          )}
+        </div>
+
         <div className="grid gap-4 md:grid-cols-3">
           {summaryCards.map((card) => (
             <SectionCard key={card.label}>
@@ -188,19 +206,25 @@ export default function EmergencyPro() {
               </div>
             </div>
             <div className="mt-4 space-y-3">
-              {hospitals.map((hospital) => (
-                <div key={hospital.id} className="rounded-xl border border-white/10 bg-charcoal-950/50 p-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="font-medium text-white">{hospital.name}</p>
-                      <p className="mt-1 text-sm text-slate-400">{hospital.distanceKm} km away | ETA {hospital.etaMin} min</p>
+              {hospitals.length ? (
+                hospitals.map((hospital, index) => (
+                  <div key={hospital.id || hospital._id || index} className="rounded-xl border border-white/10 bg-charcoal-950/50 p-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="font-medium text-white">{hospital.name}</p>
+                        <p className="mt-1 text-sm text-slate-400">{hospital.distanceKm} km away | ETA {hospital.etaMin} min</p>
+                      </div>
+                      <span className={`rounded-full px-3 py-1 text-xs font-medium ${hospital.bedsAvailable > 3 ? "bg-emerald-500/15 text-emerald-300" : hospital.bedsAvailable > 0 ? "bg-amber-500/15 text-amber-300" : "bg-rose-500/15 text-rose-300"}`}>
+                        {hospital.icuAvailable ? "ICU ready" : "No ICU"} | {hospital.bedsAvailable} beds
+                      </span>
                     </div>
-                    <span className={`rounded-full px-3 py-1 text-xs font-medium ${hospital.bedsAvailable > 3 ? "bg-emerald-500/15 text-emerald-300" : hospital.bedsAvailable > 0 ? "bg-amber-500/15 text-amber-300" : "bg-rose-500/15 text-rose-300"}`}>
-                      {hospital.icuAvailable ? "ICU ready" : "No ICU"} | {hospital.bedsAvailable} beds
-                    </span>
                   </div>
+                ))
+              ) : (
+                <div className="rounded-xl border border-dashed border-white/10 bg-charcoal-950/40 p-4 text-sm text-slate-400">
+                  Hospital routing data is not available right now.
                 </div>
-              ))}
+              )}
             </div>
           </SectionCard>
 
@@ -208,9 +232,15 @@ export default function EmergencyPro() {
             <p className="text-lg font-semibold text-white">Emergency checklist</p>
             <p className="mt-1 text-sm text-slate-400">Critical actions to complete before transport or arrival.</p>
             <ul className="mt-4 space-y-3 text-sm text-slate-300">
-              {checklist.map((item, index) => (
-                <li key={index} className="rounded-xl border border-white/10 bg-charcoal-950/40 px-4 py-3">{item}</li>
-              ))}
+              {checklist.length ? (
+                checklist.map((item, index) => (
+                  <li key={index} className="rounded-xl border border-white/10 bg-charcoal-950/40 px-4 py-3">{item}</li>
+                ))
+              ) : (
+                <li className="rounded-xl border border-dashed border-white/10 bg-charcoal-950/40 px-4 py-3 text-slate-400">
+                  Emergency checklist items are not available right now.
+                </li>
+              )}
             </ul>
             <div className="mt-4 flex flex-wrap gap-2">
               <button onClick={downloadChecklist} className="rounded-xl bg-emerald-600 px-4 py-3 text-sm font-medium text-white"><Download className="mr-2 inline h-4 w-4" />Download</button>
@@ -231,12 +261,18 @@ export default function EmergencyPro() {
             </div>
           </div>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
-            {incidents.map((incident) => (
-              <div key={incident.id} className="rounded-xl border border-white/10 bg-charcoal-950/40 p-4">
-                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">{incident.ts}</p>
-                <p className="mt-2 text-sm text-slate-200">{incident.text}</p>
+            {incidents.length ? (
+              incidents.map((incident) => (
+                <div key={incident.id} className="rounded-xl border border-white/10 bg-charcoal-950/40 p-4">
+                  <p className="text-xs uppercase tracking-[0.2em] text-slate-500">{incident.ts}</p>
+                  <p className="mt-2 text-sm text-slate-200">{incident.text}</p>
+                </div>
+              ))
+            ) : (
+              <div className="md:col-span-2 rounded-xl border border-dashed border-white/10 bg-charcoal-950/40 p-4 text-sm text-slate-400">
+                No active emergency incidents are being displayed right now.
               </div>
-            ))}
+            )}
           </div>
         </SectionCard>
 
@@ -245,15 +281,21 @@ export default function EmergencyPro() {
             <p className="text-lg font-semibold text-white">Demand forecasting</p>
             <p className="mt-1 text-sm text-slate-400">Projected emergency load over the next 12 hours.</p>
             <div className="mt-4 h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={workTrend}>
-                  <CartesianGrid stroke="rgba(148,163,184,0.12)" strokeDasharray="3 3" />
-                  <XAxis dataKey="period" stroke="#94a3b8" />
-                  <YAxis stroke="#94a3b8" />
-                  <Tooltip />
-                  <Line type="monotone" dataKey="visits" stroke="#ef4444" strokeWidth={3} dot={false} />
-                </LineChart>
-              </ResponsiveContainer>
+              {workTrend.length ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={workTrend}>
+                    <CartesianGrid stroke="rgba(148,163,184,0.12)" strokeDasharray="3 3" />
+                    <XAxis dataKey="period" stroke="#94a3b8" />
+                    <YAxis stroke="#94a3b8" />
+                    <Tooltip />
+                    <Line type="monotone" dataKey="visits" stroke="#ef4444" strokeWidth={3} dot={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-white/10 bg-charcoal-950/40 text-sm text-slate-400">
+                  Workload forecasting is not available right now.
+                </div>
+              )}
             </div>
           </SectionCard>
 
