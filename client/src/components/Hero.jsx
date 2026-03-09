@@ -499,41 +499,47 @@ export default function Hero() {
                   <div className="rounded-full bg-emerald-500/10 px-3 py-2 text-sm font-medium text-emerald-300">Live</div>
                 </div>
 
-                <div className="mt-6 overflow-hidden rounded-[28px] border border-white/10 bg-black/20">
-                  <div className="relative min-h-[320px]">
-                    {heroMedia.videoUrl ? (
-                      <video
-                        autoPlay
-                        muted
-                        loop
-                        playsInline
-                        poster={heroMedia.poster || heroMedia.image}
-                        className="absolute inset-0 h-full w-full object-cover"
-                      >
-                        <source src={heroMedia.videoUrl} />
-                      </video>
-                    ) : (
-                      <img
-                        src={heroMedia.image || "https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=1400&h=1000&fit=crop"}
-                        alt={heroMedia.ambientLabel || heroMedia.title || "Hospital experience"}
-                        className="absolute inset-0 h-full w-full object-cover"
-                      />
-                    )}
-                    <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(3,9,24,0.18),rgba(3,9,24,0.78)_72%,rgba(3,9,24,0.95))]" />
-                    <div className="relative flex h-full flex-col justify-end p-6">
-                      <p className="text-xs uppercase tracking-[0.22em] text-slate-300">
-                        {heroMedia.eyebrow || "Signature care environment"}
-                      </p>
-                      <h3 className="mt-3 max-w-xl font-['Playfair_Display'] text-3xl font-semibold text-white">
-                        {heroMedia.title || "Luxury clinical coordination, rendered as a live experience"}
-                      </h3>
-                      <p className="mt-3 max-w-xl text-sm leading-7 text-slate-200">
-                        {heroMedia.description || "Medicore presents hospital services, operational visibility, and patient access through one unified digital system."}
-                      </p>
-                      <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                <div className="mt-6 overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(135deg,rgba(8,14,26,0.98),rgba(5,10,20,0.98))]">
+                  <div className="grid min-h-[320px] lg:grid-cols-[1.05fr_0.95fr]">
+                    <div className="relative min-h-[260px] border-b border-white/10 lg:min-h-full lg:border-b-0 lg:border-r">
+                      {heroMedia.videoUrl ? (
+                        <video
+                          autoPlay
+                          muted
+                          loop
+                          playsInline
+                          poster={heroMedia.poster || heroMedia.image}
+                          className="absolute inset-0 h-full w-full object-cover"
+                        >
+                          <source src={heroMedia.videoUrl} />
+                        </video>
+                      ) : (
+                        <img
+                          src={heroMedia.image || "https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=1400&h=1000&fit=crop"}
+                          alt={heroMedia.ambientLabel || heroMedia.title || "Hospital experience"}
+                          className="absolute inset-0 h-full w-full object-cover"
+                        />
+                      )}
+                      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(3,9,24,0.14),rgba(3,9,24,0.52)_100%)]" />
+                    </div>
+
+                    <div className="flex flex-col justify-between p-6 lg:p-8">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.22em] text-slate-300">
+                          {heroMedia.eyebrow || "Signature care environment"}
+                        </p>
+                        <h3 className="mt-3 font-['Playfair_Display'] text-3xl font-semibold text-white md:text-4xl">
+                          {heroMedia.title || "Luxury clinical coordination, rendered as a live experience"}
+                        </h3>
+                        <p className="mt-4 text-sm leading-7 text-slate-200">
+                          {heroMedia.description || "Medicore presents hospital services, operational visibility, and patient access through one unified digital system."}
+                        </p>
+                      </div>
+
+                      <div className="mt-6 grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
                         {(heroMedia.metrics || []).slice(0, 3).map((metric) => (
-                          <div key={metric.id || metric.label} className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3 backdrop-blur">
-                            <p className="text-xs uppercase tracking-[0.18em] text-slate-300">{metric.label}</p>
+                          <div key={metric.id || metric.label} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                            <p className="text-xs uppercase tracking-[0.18em] text-slate-400">{metric.label}</p>
                             <p className="mt-2 text-lg font-semibold text-white">{metric.value}</p>
                           </div>
                         ))}
@@ -699,9 +705,9 @@ export default function Hero() {
 
       <section className="mx-auto max-w-7xl px-4 py-16">
         <SectionHeading
-          eyebrow="Core service architecture"
-          title="Service lines that can be merchandised and updated from the database"
-          copy="These blocks are designed to act like a live service catalogue on the homepage, not a static marketing afterthought."
+          eyebrow="Clinical services"
+          title="Hospital services organized for consultation, diagnosis, and treatment"
+          copy="Explore the main hospital services, including specialist consultation, diagnostics, preventive care, and recovery support."
           action={<button type="button" onClick={() => handleAction({ href: "/services", label: "Explore all services", section: "services_heading" })} className="text-sm font-medium text-accent-300">Explore all services</button>}
         />
         <div className="mt-8 grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
@@ -734,9 +740,9 @@ export default function Hero() {
           <PremiumPanel className="relative overflow-hidden bg-[linear-gradient(180deg,rgba(17,31,53,0.92),rgba(7,12,22,0.98))]">
             <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent-400/70 to-transparent" />
             <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Utilization signal</p>
-            <h3 className="mt-3 font-['Playfair_Display'] text-3xl font-semibold text-white">Why this feels dynamic</h3>
+            <h3 className="mt-3 font-['Playfair_Display'] text-3xl font-semibold text-white">Service overview</h3>
             <p className="mt-3 text-sm leading-7 text-slate-300">
-              The homepage can now rotate services, campaigns, and operational priorities without code changes. That gives you seasonal agility and stronger merchandising of high-margin or high-urgency care lines.
+              Review service availability, patient demand, and booking activity through one clear hospital services summary.
             </p>
             <div className="mt-6 space-y-4">
               {services.slice(0, 4).map((service, index) => {
@@ -770,9 +776,9 @@ export default function Hero() {
 
       <section className="mx-auto max-w-7xl px-4 py-16">
         <SectionHeading
-          eyebrow="Dynamic departments"
-          title="High-demand care lines with live context"
-          copy="These departments come directly from the live directory, so ratings, wait times, occupancy, and on-call teams stay relevant."
+          eyebrow="Hospital departments"
+          title="Departments with visible access, staffing, and patient demand"
+          copy="Review key departments, expected wait times, specialist coverage, and current operating context before booking."
           action={<button type="button" onClick={() => handleAction({ href: "/departments", label: "View all departments", section: "departments_heading" })} className="text-sm font-medium text-accent-300">View all departments</button>}
         />
         <div className="mt-8 grid gap-4 xl:grid-cols-4">
@@ -814,9 +820,9 @@ export default function Hero() {
         <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
           <PremiumPanel>
             <SectionHeading
-              eyebrow="Specialist discovery"
-              title="Doctors surfaced from the live directory"
-              copy="Featured doctors update from the doctor collection, not a static marketing list."
+              eyebrow="Specialist directory"
+              title="Doctors available for consultation and follow-up care"
+              copy="Browse featured specialists, review profiles, and move directly into appointment planning."
               action={<button type="button" onClick={() => handleAction({ href: "/doctors", label: "Explore all specialists", section: "doctors_heading" })} className="text-sm font-medium text-accent-300">Explore all specialists</button>}
             />
             <div className="mt-6 grid gap-4 md:grid-cols-2">
@@ -853,7 +859,7 @@ export default function Hero() {
             <SectionHeading
               eyebrow="Care pathways"
               title="Guided treatment pathways"
-              copy="Help patients understand the next step in care, from consultation and diagnostics to procedure planning and recovery."
+              copy="Help patients understand the next step in care, from consultation and diagnostics to treatment planning and recovery."
             />
             <div className="mt-6 space-y-4">
               {carePaths.map((pathway) => (
@@ -925,7 +931,7 @@ export default function Hero() {
                 ))
               ) : (
                 <div className="rounded-[26px] border border-dashed border-white/10 bg-white/[0.03] p-6 text-sm text-slate-400">
-                  Care journey updates are not available right now.
+                  Care journey information will be updated soon.
                 </div>
               )}
             </div>
@@ -935,7 +941,7 @@ export default function Hero() {
             <SectionHeading
               eyebrow="Priority campaigns"
               title="Featured health programs"
-              copy="Highlight current screening drives, recovery programs, wellness plans, and other priority hospital initiatives."
+              copy="Highlight current screening drives, recovery programs, wellness plans, and other important hospital initiatives."
             />
             {featuredCampaigns.length ? (
               <div className="mt-8 grid gap-4 md:grid-cols-2">
@@ -980,7 +986,7 @@ export default function Hero() {
               </div>
             ) : (
               <div className="mt-8 rounded-[26px] border border-dashed border-white/10 bg-white/[0.03] p-6 text-sm text-slate-400">
-                No featured programs are available right now.
+                Featured programs will be updated soon.
               </div>
             )}
           </PremiumPanel>
@@ -1020,7 +1026,7 @@ export default function Hero() {
                 ))
               ) : (
                 <div className="rounded-[26px] border border-dashed border-white/10 bg-white/[0.03] p-6 text-sm text-slate-400">
-                  Support actions are not available right now.
+                  Support actions will be updated soon.
                 </div>
               )}
             </div>
@@ -1040,7 +1046,7 @@ export default function Hero() {
                     ))
                   ) : (
                     <div className="col-span-2 rounded-2xl border border-dashed border-white/10 px-4 py-5 text-sm text-slate-400">
-                      Insurance partner information is not available right now.
+                      Insurance partner information will be updated soon.
                     </div>
                   )}
                 </div>
@@ -1070,7 +1076,7 @@ export default function Hero() {
               <SectionHeading
                 eyebrow="Patient proof"
                 title="Patient experiences"
-                copy="Share real feedback from patients and families to reinforce trust in care quality, coordination, and outcomes."
+                copy="Share feedback from patients and families to reinforce trust in care quality, coordination, and outcomes."
               />
               <div className="mt-8 grid gap-4 md:grid-cols-3">
                 {testimonials.length ? (
@@ -1105,7 +1111,7 @@ export default function Hero() {
                   ))
                 ) : (
                   <div className="md:col-span-3 rounded-[26px] border border-dashed border-white/10 bg-white/[0.03] p-6 text-sm text-slate-400">
-                    Patient feedback is not available right now.
+                    Patient feedback will be updated soon.
                   </div>
                 )}
               </div>
@@ -1115,7 +1121,7 @@ export default function Hero() {
               <SectionHeading
                 eyebrow="Health briefings"
                 title="Health updates and guidance"
-                copy="Publish hospital updates, preventive advice, and patient education content in a clear, readable format."
+                copy="Read hospital updates, preventive guidance, and patient education content in a clear, readable format."
               />
               <div className="mt-8 grid gap-4 md:grid-cols-3">
                 {articles.length ? (
@@ -1145,7 +1151,7 @@ export default function Hero() {
                   ))
                 ) : (
                   <div className="md:col-span-3 rounded-[26px] border border-dashed border-white/10 bg-white/[0.03] p-6 text-sm text-slate-400">
-                    Health updates are not available right now.
+                    Health updates will be updated soon.
                   </div>
                 )}
               </div>
@@ -1191,7 +1197,7 @@ export default function Hero() {
         </div>
       </section>
 
-      {loading ? <div className="pb-8 text-center text-sm text-slate-500">Loading dynamic homepage content...</div> : null}
+      {loading ? <div className="pb-8 text-center text-sm text-slate-500">Loading homepage content...</div> : null}
     </div>
   );
 }
